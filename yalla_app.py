@@ -44,9 +44,9 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.3.1"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
-MINI_W, MINI_H = 36, 12     # idle bubble (design spec 2a)
+MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 PILL_BG = "#14121D"
 UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
@@ -125,7 +125,8 @@ PILL_HTML = """<!DOCTYPE html><html><head><style>
 *{margin:0;padding:0}html,body{background:#14121D;overflow:hidden}
 body{font-family:'Segoe UI',sans-serif;height:100vh;box-sizing:border-box;
 position:relative;border:1px solid rgba(255,255,255,.30);border-radius:8px}
-body.mini{border-radius:6px}
+body.mini{border:none;border-radius:4px;
+box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
 /* design 2a keyframes — authoritative */
 @keyframes pillBreathe{0%,100%{opacity:.25}50%{opacity:.6}}
 @keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
@@ -228,12 +229,12 @@ class Settings(dict):
             logging.exception("settings save failed")
 
 
-def _bar_note(freq, dur, sr):
+def _bar_note(freq, dur, sr, decay=16.0):
     """One soft struck-bar (marimba-like) note: warm detuned harmonics with a
     fast attack and natural exponential decay — not a raw electronic sine."""
     n = int(sr * dur)
     t = np.arange(n) / sr
-    env = np.exp(-t * 16.0)
+    env = np.exp(-t * decay)
     attack = min(int(sr * 0.004), n)
     env[:attack] *= np.linspace(0.0, 1.0, attack)
     w = (np.sin(2 * np.pi * freq * t)
@@ -242,12 +243,12 @@ def _bar_note(freq, dur, sr):
     return w * env
 
 
-def _chime_wav(notes, amp, sr=44100):
+def _chime_wav(notes, amp, sr=44100, total=0.45, decay=16.0):
     """notes: (freq_hz, offset_ms) pairs layered into one soft chime."""
-    total_len = int(sr * 0.45)
+    total_len = int(sr * total)
     mix = np.zeros(total_len)
     for freq, off_ms in notes:
-        note = _bar_note(freq, 0.38, sr)
+        note = _bar_note(freq, max(0.05, total - 0.02), sr, decay)
         i0 = int(sr * off_ms / 1000)
         end = min(total_len, i0 + len(note))
         mix[i0:end] += note[:end - i0]
@@ -344,11 +345,26 @@ class Engine:
         self.lock = threading.Lock()
         self._clean_model_idx = 0
         self.rebuild_chimes()
+        # first device-open of a session is the slow one — take that hit now
+        threading.Thread(target=self._prewarm_mic, daemon=True).start()
+
+    def _prewarm_mic(self):
+        try:
+            s = sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
+                               dtype="float32", device=self._resolve_device())
+            s.start()
+            s.stop()
+            s.close()
+        except Exception:
+            pass
 
     def rebuild_chimes(self):
         amp = max(0, min(100, self.settings.get("chime_volume", 40))) / 100 * 0.5
-        # gentle marimba: rising fifth on start, falling fourth on stop
-        self.start_wav = _chime_wav([(659, 0), (988, 70)], amp)
+        # start: short ~140ms tick — it plays synchronously before the mic
+        # opens, so its length is pure key-to-recording latency
+        self.start_wav = _chime_wav([(659, 0), (988, 55)], amp,
+                                    total=0.14, decay=30.0)
+        # stop: full marimba tail (plays async, costs nothing)
         self.stop_wav = _chime_wav([(880, 0), (587, 65)], amp)
 
     def _play(self, wav_bytes, block):
@@ -407,7 +423,13 @@ class Engine:
         with self.lock:
             if self.recording:
                 return
-            self._play(self.start_wav, block=True)  # before the mic opens
+            self._starting = True
+            self._want_stop = False
+            # UI first: the pill starts expanding the instant the key lands;
+            # the chime and mic-open happen behind the animation
+            self.started_at = time.time()
+            self.on_state("recording", "")
+            self._play(self.start_wav, block=True)  # ~140ms, before mic opens
             self.frames = queue.Queue()
             try:
                 self.stream = sd.InputStream(
@@ -418,15 +440,22 @@ class Engine:
                 self.stream.start()
             except Exception as e:
                 logging.exception("mic open failed")
+                self._starting = False
                 self.on_state("error", f"Mic error: {e}")
                 return
             self.recording = True
-            self.started_at = time.time()
-            self.on_state("recording", "")
+            self._starting = False
+        # hold-to-talk: if the key was released during the ~300ms prep,
+        # honor it now instead of recording forever
+        if getattr(self, "_want_stop", False):
+            self._want_stop = False
+            self._stop_inner()
 
     def _stop_inner(self):
         with self.lock:
             if not self.recording:
+                if getattr(self, "_starting", False):
+                    self._want_stop = True
                 return
             self.recording = False
             self.level = 0.0
@@ -947,12 +976,17 @@ class YallaFlow:
         try:
             h = self.pill_win.native.Handle
             phwnd = int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
-            corner = ctypes.c_int(2)  # DWMWCP_ROUND (clamps to h/2 when tiny)
+            # ROUNDSMALL for the idle bubble (8px ROUND needs 16px height and
+            # ghosts past a 12px window); the animator switches to ROUND for
+            # the expanded pill and back on collapse
+            corner = ctypes.c_int(3)  # DWMWCP_ROUNDSMALL
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 33, ctypes.byref(corner), 4)
-            # suppress the OS border — the design's 30% white hairline is
-            # drawn in CSS instead (DWMWA_COLOR_NONE)
-            border = ctypes.c_uint(0xFFFFFFFE)
+            # hide the OS border by painting it the pill's own background —
+            # the DWMWA_COLOR_NONE sentinel renders as a LITERAL near-white
+            # color on some builds (that was the ghost capsule around the
+            # bubble). The design's hairline edge is drawn in CSS.
+            border = ctypes.c_uint(0x001D1214)  # COLORREF BGR of #14121D
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 34, ctypes.byref(border), 4)
             # HUD behavior: WS_EX_NOACTIVATE so showing the pill can never
@@ -965,12 +999,16 @@ class YallaFlow:
             self._pill_hwnd = phwnd  # cached for the native animator
             try:
                 # dark form backing — kills the white fringe that peeks out
-                # around the web content at tiny sizes / during resizes
-                import System.Drawing  # pythonnet, already loaded by pywebview
+                # around the web content at tiny sizes / during resizes.
+                # NB: the assembly must be referenced before the namespace
+                # import works under pythonnet — a bare import fails silently.
+                import clr
+                clr.AddReference("System.Drawing")
+                import System.Drawing
                 self.pill_win.native.BackColor = \
                     System.Drawing.ColorTranslator.FromHtml(PILL_BG)
             except Exception:
-                pass
+                logging.exception("pill backcolor failed")
             self._pill_rounded = True
         except Exception:
             if attempt < 4:
@@ -1024,6 +1062,20 @@ class YallaFlow:
                 self._move_pill()
             time.sleep(0.35)
 
+    def _set_pill_corners(self, small):
+        """DWM corner preference per state: ROUNDSMALL (4px) fits the 12px
+        idle bubble; ROUND (8px) suits the 38px expanded pill. Using ROUND on
+        the tiny window makes DWM draw corner arcs past its bounds."""
+        hwnd = getattr(self, "_pill_hwnd", None)
+        if not hwnd:
+            return
+        try:
+            corner = ctypes.c_int(3 if small else 2)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 33, ctypes.byref(corner), 4)
+        except Exception:
+            pass
+
     def _animate_pill(self, expand):
         """Eased window-size animation between the idle bubble and the full
         pill, anchored bottom-center so it grows in place. Drives raw
@@ -1043,6 +1095,7 @@ class YallaFlow:
         self._pill_animating = True
         try:
             if expand:
+                self._set_pill_corners(small=False)
                 time.sleep(0.03)  # let the just-shown window settle first
             if hwnd:
                 try:
@@ -1078,6 +1131,19 @@ class YallaFlow:
                     self._pill_wh = (w, h)
                     time.sleep(0.014)
             self._pill_wh = end
+            # reconcile: the native SetWindowPos path resizes the form behind
+            # WinForms' back, and a same-size framework resize is skipped as a
+            # no-op — so jiggle by 1px first to force a real layout pass that
+            # snaps the WebView2 content to the final bounds
+            try:
+                self.pill_win.resize(end[0] + 1, end[1] + 1)
+                time.sleep(0.02)
+                self.pill_win.resize(end[0], end[1])
+                self.pill_win.move(anchor[0] - end[0] // 2, anchor[1] - end[1])
+            except Exception:
+                pass
+            if not expand:
+                self._set_pill_corners(small=True)
         except Exception:
             self._pill_wh = end
         finally:
