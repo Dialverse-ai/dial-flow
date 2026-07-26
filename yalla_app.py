@@ -208,6 +208,44 @@ def _chime_wav(notes, amp, sr=44100):
     return buf.getvalue()
 
 
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [("wVk", ctypes.c_ushort), ("wScan", ctypes.c_ushort),
+                ("dwFlags", ctypes.c_ulong), ("time", ctypes.c_ulong),
+                ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
+
+
+class _INPUT_UNION(ctypes.Union):
+    _fields_ = [("ki", _KEYBDINPUT), ("padding", ctypes.c_byte * 32)]
+
+
+class _INPUT(ctypes.Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [("type", ctypes.c_ulong), ("u", _INPUT_UNION)]
+
+
+_paste_extra = ctypes.c_ulong(0)
+
+
+def _send_paste():
+    """Layout-independent Ctrl+V via SendInput virtual keys.
+
+    keyboard.send('ctrl+v') resolves the letter V through the ACTIVE keyboard
+    layout — with an Arabic layout (browsers, WhatsApp Web) that misfires and
+    nothing pastes. VK codes name the physical shortcut, which Windows apps
+    recognize under any layout."""
+    def key(vk, up=False):
+        inp = _INPUT(type=1)  # INPUT_KEYBOARD
+        inp.ki = _KEYBDINPUT(vk, 0, 2 if up else 0, 0,
+                             ctypes.pointer(_paste_extra))
+        return inp
+
+    seq = [key(0x11), key(0x56), key(0x56, True), key(0x11, True)]  # Ctrl,V
+    arr = (_INPUT * len(seq))(*seq)
+    sent = ctypes.windll.user32.SendInput(len(seq), arr, ctypes.sizeof(_INPUT))
+    if sent != len(seq):
+        logging.error("paste injection incomplete: %s/%s events", sent, len(seq))
+
+
 def _parse_dictionary(text):
     pairs = []
     for line in text.splitlines():
@@ -405,13 +443,11 @@ class Engine:
         text = _apply_dictionary(
             text, _parse_dictionary(self.settings.get("dictionary", "")))
 
-        old_clip = None
-        try:
-            old_clip = pyperclip.paste()
-        except Exception:
-            pass
+        # the transcript stays in the clipboard afterwards on purpose —
+        # if a paste ever misses, Ctrl+V by hand recovers it
         pyperclip.copy(text)
-        keyboard.send("ctrl+v")
+        time.sleep(0.15)  # let the clipboard write commit before pasting
+        _send_paste()
         entry = {
             "ts": time.time(),
             "lang": lang,
@@ -425,12 +461,6 @@ class Engine:
         }
         self.on_transcript(entry)
         self.on_state("idle", "")
-        if old_clip is not None:
-            time.sleep(0.4)
-            try:
-                pyperclip.copy(old_clip)
-            except Exception:
-                pass
 
     def transcribe_file(self, path, lang):
         """Re-run transcription on a kept recording. Returns text or None."""
