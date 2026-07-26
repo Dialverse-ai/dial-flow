@@ -165,6 +165,9 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
   animation:rowIn .25s ease both}
 @keyframes rowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .row:hover,.row.menu-open{background:var(--surface);box-shadow:0 1px 3px rgba(46,42,36,.07)}
+/* each row is its own stacking context (entry animation), so later rows paint
+   over an open menu unless the open row is lifted above its siblings */
+.row.menu-open{z-index:50}
 .row .t{flex:none;width:38px;font-size:11.5px;color:var(--muted);
   font-variant-numeric:tabular-nums;padding-top:2px}
 .row .txt{flex:1;font-size:13.5px;line-height:1.6;-webkit-user-select:text;user-select:text}
@@ -222,6 +225,15 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 .rail-stat .l{font-size:11.5px;color:var(--text2)}
 .tip-card{background:var(--tint);border:1px solid #E5DCCA;border-radius:12px;
   padding:13px 15px;font-size:11.5px;line-height:1.8;color:var(--text2)}
+
+/* ===== update banner ===== */
+#update-banner{display:none;margin-top:16px;background:var(--accent-tint);
+  border:1px solid var(--accent-tint-b);border-radius:12px;padding:12px 16px;
+  align-items:center;justify-content:space-between;gap:14px;flex:none;
+  animation:rowIn .25s ease both}
+#update-banner.on{display:flex}
+#update-banner .ut{font-size:12.5px;font-weight:600;color:var(--accent-text)}
+#update-banner .us{font-size:11.5px;color:#5A5346;margin-top:2px}
 
 /* ===== insights ===== */
 #page-insights{overflow-y:auto}
@@ -346,6 +358,13 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
     <div class="page on" id="page-dictation">
       <div class="page-date" id="today-date"></div>
       <div class="page-title" id="greeting">Welcome back</div>
+      <div id="update-banner">
+        <div>
+          <div class="ut" id="update-title">Update available</div>
+          <div class="us" id="update-sub"></div>
+        </div>
+        <button class="btn-primary" id="update-btn" onclick="doUpdate()">Update now</button>
+      </div>
       <div id="dict-cols">
         <div id="dict-left">
           <div class="status-card">
@@ -527,7 +546,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAutostart()}"></div>
           </div>
         </div>
-        <div class="set-note">Yalla Flow 2.0 · by Dialverse · key stored on this device only</div>
+        <div class="set-note" id="ver-note">Yalla Flow · by Dialverse · key stored on this device only</div>
       </div>
     </div>
   </div>
@@ -597,8 +616,28 @@ window.app = {
     if (i >= 0) HISTORY[i] = e;
     renderFeed(); renderRail();
   },
-  setLanguage(lang){ segSet('seg-lang', lang); }
+  setLanguage(lang){ segSet('seg-lang', lang); },
+  updateAvailable(tag){
+    $('update-title').textContent = `Yalla Flow ${tag} is available`;
+    $('update-sub').textContent = 'One click — it downloads, swaps itself, and relaunches.';
+    $('update-btn').style.display = '';
+    $('update-btn').disabled = false;
+    $('update-btn').textContent = 'Update now';
+    $('update-banner').classList.add('on');
+  },
+  updateState(st){
+    if (st === 'downloading'){
+      $('update-btn').disabled = true;
+      $('update-btn').textContent = 'Downloading…';
+      $('update-sub').textContent = 'Grabbing the new version — the app will restart itself.';
+    } else if (st === 'failed'){
+      $('update-btn').disabled = false;
+      $('update-btn').textContent = 'Retry';
+      $('update-sub').textContent = 'Update failed — or download it from github.com/Dialverse/yalla-flow/releases';
+    }
+  }
 };
+function doUpdate(){ api('do_update'); }
 function esc(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 /* ---------- history feed ---------- */
@@ -1007,6 +1046,9 @@ function boot(init){
   fillSelect('sel-langkey', LANG_KEYS, S.lang_key, v => { setSetting('lang_key', v); renderHints(); });
   fillSelect('sel-mic', init.devices, S.mic_device || 'System default',
              v => setSetting('mic_device', v === 'System default' ? '' : v));
+  if (init.version)
+    $('ver-note').textContent =
+      `Yalla Flow ${init.version} · by Dialverse · key stored on this device only`;
   renderFeed(); renderRail(); renderHints();
   window.app.setState('idle', '');
 }

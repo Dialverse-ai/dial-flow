@@ -44,6 +44,8 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
+APP_VERSION = "2.1.0"
+UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
 MODELS_URL = "https://api.cohere.com/v1/models"
@@ -556,6 +558,9 @@ class Api:
     def open_link(self, url):
         return self._app.open_link(url)
 
+    def do_update(self):
+        return self._app.do_update()
+
     def undo_ai(self, ts):
         return self._app.undo_ai(ts)
 
@@ -604,6 +609,7 @@ class YallaFlow:
             "key_set": bool(key),
             "logo": logo,
             "user": user.capitalize() if user else "",
+            "version": APP_VERSION,
             "settings": dict(self.settings),
             "history": self.history[-500:],
             "devices": self._devices(),
@@ -763,6 +769,73 @@ class YallaFlow:
     def quit(self):
         self._shutdown()
 
+    # ---------- self-update ----------
+
+    @staticmethod
+    def _vtuple(s):
+        nums = re.findall(r"\d+", s or "")
+        return tuple(int(x) for x in nums[:3]) if nums else (0,)
+
+    def _update_check(self):
+        """Once per launch: ask GitHub for the latest release and offer it."""
+        time.sleep(4)
+        try:
+            r = requests.get(UPDATE_API, timeout=15,
+                             headers={"User-Agent": "YallaFlow"})
+            if r.status_code != 200:
+                return
+            data = r.json()
+            tag = data.get("tag_name", "")
+            if self._vtuple(tag) <= self._vtuple(APP_VERSION):
+                return
+            url = next((a["browser_download_url"]
+                        for a in data.get("assets", [])
+                        if a.get("name", "").lower().endswith(".exe")), None)
+            if not url:
+                return
+            self._update_url = url
+            logging.info("update available: %s", tag)
+            self._js(self.main_win, f"app.updateAvailable({json.dumps(tag)})")
+        except Exception:
+            logging.exception("update check failed")
+
+    def do_update(self):
+        if not getattr(sys, "frozen", False) or not getattr(self, "_update_url", None):
+            return {"ok": False}
+        threading.Thread(target=self._update_worker, daemon=True).start()
+        return {"ok": True}
+
+    def _update_worker(self):
+        """Download the new exe, then hand off to a script that swaps the
+        file once this process exits and relaunches the app."""
+        try:
+            self._js(self.main_win, "app.updateState('downloading')")
+            r = requests.get(self._update_url, timeout=600, stream=True)
+            r.raise_for_status()
+            new_path = os.path.join(CONFIG_DIR, "YallaFlow_update.exe")
+            with open(new_path, "wb") as f:
+                for chunk in r.iter_content(1 << 16):
+                    f.write(chunk)
+            if os.path.getsize(new_path) < 5_000_000:
+                raise ValueError("downloaded file suspiciously small")
+            cur = sys.executable
+            bat = os.path.join(CONFIG_DIR, "update.bat")
+            with open(bat, "w", encoding="ascii") as f:
+                f.write('@echo off\n'
+                        'ping -n 4 127.0.0.1 > nul\n'
+                        f'move /y "{new_path}" "{cur}"\n'
+                        f'start "" "{cur}"\n'
+                        'del "%~f0"\n')
+            import subprocess
+            subprocess.Popen(["cmd", "/c", bat],
+                             creationflags=0x08000000)  # CREATE_NO_WINDOW
+            logging.info("self-update handoff started")
+            time.sleep(0.5)
+            self._shutdown()
+        except Exception:
+            logging.exception("self-update failed")
+            self._js(self.main_win, "app.updateState('failed')")
+
     # ---------- engine wiring ----------
 
     def _boot_engine(self, key):
@@ -811,6 +884,13 @@ class YallaFlow:
             border = ctypes.c_uint(0x00452D32)  # COLORREF BGR of #322D45
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 34, ctypes.byref(border), 4)
+            # HUD behavior: WS_EX_NOACTIVATE so showing the pill can never
+            # steal focus from the field the user is dictating into
+            GWL_EXSTYLE = -20
+            ex = ctypes.windll.user32.GetWindowLongPtrW(phwnd, GWL_EXSTYLE)
+            ctypes.windll.user32.SetWindowLongPtrW(
+                phwnd, GWL_EXSTYLE,
+                ex | 0x08000000 | 0x00000080)  # NOACTIVATE | TOOLWINDOW
             self._pill_rounded = True
         except Exception:
             if attempt < 4:
@@ -870,10 +950,16 @@ class YallaFlow:
         if self.pill_win is not None:
             try:
                 if state == "recording":
+                    # remember the user's focused window: showing the pill may
+                    # activate it (first show, before NOACTIVATE applies) and
+                    # would un-focus the field they want to dictate into
+                    prev_fg = ctypes.windll.user32.GetForegroundWindow()
                     self._move_pill()
                     self.pill_win.show()
                     self._pill_visible = True
                     self._pill_processing = False
+                    threading.Timer(0.05, self._restore_focus,
+                                    args=(prev_fg,)).start()
                     threading.Timer(0.25, self._round_pill).start()
                     self._js(self.pill_win, f"app.start({started})")
                 elif state in ("transcribing", "cleaning"):
@@ -896,6 +982,14 @@ class YallaFlow:
     def _hide_pill(self):
         try:
             self.pill_win.hide()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _restore_focus(prev_hwnd):
+        try:
+            if prev_hwnd and ctypes.windll.user32.GetForegroundWindow() != prev_hwnd:
+                ctypes.windll.user32.SetForegroundWindow(prev_hwnd)
         except Exception:
             pass
 
@@ -1003,6 +1097,7 @@ class YallaFlow:
 
     def _post_start(self):
         self._setup_tray()
+        threading.Thread(target=self._update_check, daemon=True).start()
         # keep the Run-key path fresh in case the exe was moved
         if self.settings.get("autostart") and getattr(sys, "frozen", False):
             _apply_autostart(True)
