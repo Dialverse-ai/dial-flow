@@ -44,9 +44,10 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.3.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
-MINI_W, MINI_H = 34, 10     # idle bubble — tiny, Wispr-sized
+MINI_W, MINI_H = 36, 12     # idle bubble (design spec 2a)
+PILL_BG = "#14121D"
 UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
@@ -121,66 +122,89 @@ def _apply_autostart(enabled):
         logging.exception("autostart update failed")
 
 PILL_HTML = """<!DOCTYPE html><html><head><style>
-*{margin:0;padding:0}html,body{background:#1C1926;overflow:hidden}
-body{font-family:'Segoe UI',sans-serif;height:100vh;display:flex;align-items:center;
-justify-content:center;gap:8px;box-sizing:border-box;
-transition:opacity .22s ease,transform .22s ease}
-#mini{display:none}
-body.mini .dot,body.mini #t,body.mini #wave,body.mini #spin{display:none}
-body.mini{background:#3A3742;animation:breathe 3.4s ease-in-out infinite}
-@keyframes breathe{
- 0%,100%{background:#3A3742}
- 50%{background:#55506B}
-}
-.dot{width:9px;height:9px;border-radius:99px;background:#F26B5E;flex:none;
-animation:pulse 1.5s ease-in-out infinite;transition:opacity .18s ease}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.7)}}
+*{margin:0;padding:0}html,body{background:#14121D;overflow:hidden}
+body{font-family:'Segoe UI',sans-serif;height:100vh;box-sizing:border-box;
+position:relative;border:1px solid rgba(255,255,255,.30);border-radius:8px}
+body.mini{border-radius:6px}
+/* design 2a keyframes — authoritative */
+@keyframes pillBreathe{0%,100%{opacity:.25}50%{opacity:.6}}
+@keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes pillDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.72);opacity:.55}}
+@keyframes pillBar{0%,100%{transform:scaleY(.22)}50%{transform:scaleY(1)}}
+@keyframes pillShim{0%,100%{opacity:.18}50%{opacity:.9}}
+@keyframes pillSpin{to{transform:rotate(360deg)}}
+@keyframes pillPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes pillRise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pillFlash{0%,46%{opacity:1}100%{opacity:0}}
+/* layers */
+.layer{position:absolute;inset:0;display:flex;align-items:center;
+justify-content:center;gap:8px}
+#core{width:22px;height:6px;border-radius:3px;
+background:radial-gradient(closest-side,rgba(141,121,246,.9),rgba(141,121,246,0));
+animation:coreIn .4s ease-out both,pillBreathe 3.2s ease-in-out .4s infinite}
+#recwash{position:absolute;inset:0;border-radius:7px;
+box-shadow:inset 0 0 12px rgba(242,107,94,.16)}
+#flashrim{position:absolute;inset:0;border-radius:7px;
+box-shadow:inset 0 0 10px rgba(201,190,255,.4);animation:pillFlash .3s ease-out both}
+.dotwrap{display:flex;animation:pillPop .12s ease-out .08s both}
+.dotwrap i{width:9px;height:9px;border-radius:999px;background:#F26B5E;display:block;
+animation:pillDot 1.4s ease-in-out .2s infinite}
 #t{font-size:13px;font-weight:600;color:#F5F3FA;font-variant-numeric:tabular-nums;
-transition:opacity .18s ease}
-#wave{display:flex;align-items:center;gap:2px}
-#wave i{width:2px;border-radius:1px;background:#F26B5E;height:5px;
-transition:background .25s ease,height .18s ease}
-#spin{width:13px;height:13px;border-radius:99px;border:2px solid rgba(159,139,255,.25);
-border-top-color:#9F8BFF;animation:rot .8s linear infinite;display:none;flex:none;
-opacity:0;transition:opacity .18s ease}
-@keyframes rot{to{transform:rotate(360deg)}}
-body.processing .dot,body.processing #t{display:none}
-body.processing #spin{display:block;opacity:1}
-body.processing #wave{gap:3.5px}
-body.processing #wave i{background:#8F86B8;width:2.5px;height:2.5px!important;
-border-radius:99px;animation:shim 1.3s ease-in-out infinite}
-@keyframes shim{0%,100%{opacity:.2}50%{opacity:.85}}
-body.flash #wave i{background:#9F8BFF}
-</style></head><body>
-<div class="dot"></div><div id="t">0:00</div>
-<div id="wave"></div>
-<div id="spin"></div>
-<div id="mini"></div>
+animation:pillRise .14s ease-out .12s both}
+#wave{display:flex;align-items:center;gap:2px;animation:pillRise .16s ease-out .16s both}
+#wave i{width:2px;border-radius:1px;background:#F26B5E;display:block;
+animation:pillBar .76s ease-in-out infinite}
+.pspin{display:flex;animation:pillPop .12s ease-out .06s both}
+.pspin i{width:13px;height:13px;border-radius:999px;display:block;
+border:2px solid rgba(159,139,255,.25);border-top-color:#9F8BFF;
+animation:pillSpin .8s linear infinite}
+#pdots{display:flex;align-items:center;gap:3.5px;animation:pillRise .16s ease-out .1s both}
+#pdots i{width:2.5px;height:2.5px;border-radius:999px;background:#8F86B8;display:block;
+animation:pillShim 1.32s ease-in-out infinite}
+/* state visibility */
+.layer,#recwash,#flashrim{display:none}
+body.mini #core-l{display:flex}
+body.rec #rec-l{display:flex}
+body.rec #recwash{display:block}
+body.processing #proc-l{display:flex}
+body.flash #proc-l{display:flex}
+body.flash #flashrim{display:block}
+body.flash .pspin{display:none}
+body.flash #pdots{animation:none}
+body.flash #pdots i{background:#C9BEFF;animation:pillFlash .3s ease-out both}
+</style></head><body class="mini">
+<div id="recwash"></div><div id="flashrim"></div>
+<div class="layer" id="core-l"><div id="core"></div></div>
+<div class="layer" id="rec-l">
+ <span class="dotwrap"><i></i></span>
+ <div id="t">0:00</div>
+ <div id="wave"></div>
+</div>
+<div class="layer" id="proc-l" style="gap:9px">
+ <span class="pspin"><i></i></span>
+ <div id="pdots"></div>
+</div>
 <script>
-let startedAt=0,level=0,disp=0;const N=12;
+let startedAt=0;
+const H=[8,14,20,11,17,22,9,15,12,18,10,16];
+const D=[0,.07,.14,.21,.28,.35,.03,.1,.17,.24,.31,.38];
 const wave=document.getElementById('wave');
-for(let i=0;i<N;i++){const b=document.createElement('i');
-b.style.animationDelay=(i*0.1)+'s';wave.appendChild(b);}
-const bars=wave.children;
+H.forEach((h,i)=>{const b=document.createElement('i');
+b.style.height=h+'px';b.style.animationDelay=D[i]+'s';wave.appendChild(b);});
+const pd=document.getElementById('pdots');
+for(let i=0;i<12;i++){const d=document.createElement('i');
+d.style.animationDelay=(i*0.11)+'s';pd.appendChild(d);}
 window.app={
- start(ts){startedAt=ts;document.body.className='';},
- level(v){level=v},
- mode(m){document.body.className=
-  m==='processing'?'processing':m==='mini'?'mini':'';},
- done(){document.body.classList.add('flash');}
+ start(ts){startedAt=ts;document.body.className='rec';},
+ level(v){},
+ mode(m){document.body.className=m;},
+ done(){document.body.className='processing flash';}
 };
 function raf(){
- disp+=(Math.min(1,level*9)-disp)*(level*9>disp?0.35:0.08);
- const t=performance.now()/1000;
- if(!document.body.classList.contains('processing')){
-  for(let i=0;i<N;i++){
-   const wig=0.6+0.4*Math.sin(t*9+i*1.1);
-   bars[i].style.height=Math.max(3,(3+14*disp)*wig)+'px';
-  }
-  if(startedAt){
-   const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
-   document.getElementById('t').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
-  }
+ if(document.body.classList.contains('rec')&&startedAt){
+  const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
+  document.getElementById('t').textContent=
+   Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
  }
  requestAnimationFrame(raf);}
 requestAnimationFrame(raf);
@@ -923,10 +947,12 @@ class YallaFlow:
         try:
             h = self.pill_win.native.Handle
             phwnd = int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
-            corner = ctypes.c_int(2)  # DWMWCP_ROUND
+            corner = ctypes.c_int(2)  # DWMWCP_ROUND (clamps to h/2 when tiny)
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 33, ctypes.byref(corner), 4)
-            border = ctypes.c_uint(0x00452D32)  # COLORREF BGR of #322D45
+            # suppress the OS border — the design's 30% white hairline is
+            # drawn in CSS instead (DWMWA_COLOR_NONE)
+            border = ctypes.c_uint(0xFFFFFFFE)
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 34, ctypes.byref(border), 4)
             # HUD behavior: WS_EX_NOACTIVATE so showing the pill can never
@@ -942,7 +968,7 @@ class YallaFlow:
                 # around the web content at tiny sizes / during resizes
                 import System.Drawing  # pythonnet, already loaded by pywebview
                 self.pill_win.native.BackColor = \
-                    System.Drawing.ColorTranslator.FromHtml("#1C1926")
+                    System.Drawing.ColorTranslator.FromHtml(PILL_BG)
             except Exception:
                 pass
             self._pill_rounded = True
@@ -1023,12 +1049,15 @@ class YallaFlow:
                     dpi = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
                 except Exception:
                     dpi = 1.0
-                steps, dt = 16, 0.010  # ~160ms at ~100fps native moves
+                # design spec: grow 180ms cubic-bezier(.2,0,0,1) (strong
+                # ease-out), shrink 200ms cubic-bezier(.4,0,.2,1) (in-out)
+                steps = 16
+                dt = (0.180 if expand else 0.200) / steps
                 for i in range(1, steps + 1):
                     if token != self._anim_token or self.quitting:
                         return
                     t = i / steps
-                    t = t * t * (3 - 2 * t)  # smoothstep ease-in-out
+                    t = 1 - (1 - t) ** 3 if expand else t * t * (3 - 2 * t)
                     w = round(start[0] + (end[0] - start[0]) * t)
                     h = round(start[1] + (end[1] - start[1]) * t)
                     pw, ph = int(w * dpi), int(h * dpi)
@@ -1056,16 +1085,25 @@ class YallaFlow:
                 self._pill_animating = False
 
     def _pill_to_idle(self):
-        """After recording/processing (or on error): settle into the idle
-        bubble, or hide entirely if the user turned the bubble off."""
+        """Direct settle (no success flash — error, toggle, etc.): empty the
+        frame, shrink, then breathe the idle core back in."""
         if self.pill_win is None:
             return
+        threading.Thread(target=self._pill_settle, args=(False,),
+                         daemon=True).start()
+
+    def _pill_settle(self, flash):
+        """Design T3 timeline: flash 0-300ms → contents empty while the
+        window shrinks 300-500ms → idle core fades in and breathes."""
         try:
+            if flash:
+                self._js(self.pill_win, "app.done()")
+                time.sleep(0.30)
             if self.settings.get("idle_pill", True):
-                self._js(self.pill_win, "app.mode('mini')")
+                self._js(self.pill_win, "app.mode('')")  # empty while moving
                 self._pill_visible = True
-                threading.Thread(target=self._animate_pill, args=(False,),
-                                 daemon=True).start()
+                self._animate_pill(False)
+                self._js(self.pill_win, "app.mode('mini')")  # coreIn 400ms
             else:
                 self._pill_visible = False
                 self.pill_win.hide()
@@ -1119,10 +1157,10 @@ class YallaFlow:
                     self._pill_processing = True
                     self._js(self.pill_win, "app.mode('processing')")
                 elif getattr(self, "_pill_processing", False) and state == "idle":
-                    # designed exit: flash violet, then ease back into the bubble
+                    # designed T3 exit: success flash → empty shrink → breathe
                     self._pill_processing = False
-                    self._js(self.pill_win, "app.done()")
-                    threading.Timer(0.2, self._pill_to_idle).start()
+                    threading.Thread(target=self._pill_settle, args=(True,),
+                                     daemon=True).start()
                 else:
                     self._pill_processing = False
                     self._pill_to_idle()
@@ -1287,7 +1325,7 @@ class YallaFlow:
             # allowed to shrink all the way down to the idle bubble
             min_size=(MINI_W, MINI_H),
             frameless=True, on_top=True, hidden=True, resizable=False,
-            focus=False, background_color="#1C1926")
+            focus=False, background_color=PILL_BG)
         logging.info("app started")
         webview.start(func=self._post_start, debug=False)
 
