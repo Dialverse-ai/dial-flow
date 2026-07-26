@@ -44,7 +44,9 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
+PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
+MINI_W, MINI_H = 46, 14     # idle bubble
 UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
@@ -75,7 +77,28 @@ DEFAULT_SETTINGS = {
     "dictionary": "dialverse = Dialverse",
     "language": "ar",
     "autostart": False,
+    "idle_pill": True,
+    "audio_enhance": True,
 }
+
+
+def _enhance_audio(audio):
+    """Near-zero-latency mic cleanup before transcription: high-pass out
+    sub-75Hz rumble, then normalize quiet speech up to the level the ASR
+    model expects (capped so noise isn't blown up). One FFT pass, <50ms."""
+    if len(audio) < 1600:
+        return audio
+    spec = np.fft.rfft(audio)
+    freqs = np.fft.rfftfreq(len(audio), 1.0 / SAMPLE_RATE)
+    spec[freqs < 75] = 0
+    audio = np.fft.irfft(spec, n=len(audio)).astype(np.float32)
+    rms = float(np.sqrt(np.mean(audio ** 2)))
+    if rms > 1e-5:
+        audio = audio * min(0.1 / rms, 8.0)  # target −20 dBFS, gain cap 18 dB
+    peak = float(np.max(np.abs(audio)))
+    if peak > 0.98:
+        audio = audio * (0.98 / peak)
+    return audio
 
 
 def _apply_autostart(enabled):
@@ -102,7 +125,10 @@ PILL_HTML = """<!DOCTYPE html><html><head><style>
 body{font-family:'Segoe UI',sans-serif;height:100vh;display:flex;align-items:center;
 justify-content:center;gap:8px;box-sizing:border-box;
 transition:opacity .22s ease,transform .22s ease}
-body.exit{opacity:0;transform:translateY(8px)}
+#mini{display:none;width:16px;height:3px;border-radius:2px;background:#8F86B8;
+opacity:.55}
+body.mini .dot,body.mini #t,body.mini #wave,body.mini #spin{display:none}
+body.mini #mini{display:block}
 .dot{width:9px;height:9px;border-radius:99px;background:#F26B5E;flex:none;
 animation:pulse 1.5s ease-in-out infinite;transition:opacity .18s ease}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.7)}}
@@ -126,6 +152,7 @@ body.flash #wave i{background:#9F8BFF}
 <div class="dot"></div><div id="t">0:00</div>
 <div id="wave"></div>
 <div id="spin"></div>
+<div id="mini"></div>
 <script>
 let startedAt=0,level=0,disp=0;const N=12;
 const wave=document.getElementById('wave');
@@ -135,9 +162,9 @@ const bars=wave.children;
 window.app={
  start(ts){startedAt=ts;document.body.className='';},
  level(v){level=v},
- mode(m){document.body.className=m==='processing'?'processing':'';},
- done(){document.body.classList.add('flash');
-  setTimeout(()=>document.body.classList.add('exit'),120);}
+ mode(m){document.body.className=
+  m==='processing'?'processing':m==='mini'?'mini':'';},
+ done(){document.body.classList.add('flash');}
 };
 function raf(){
  disp+=(Math.min(1,level*9)-disp)*(level*9>disp?0.35:0.08);
@@ -387,6 +414,11 @@ class Engine:
                 self.on_state("idle", "Too short — ignored")
                 return
             audio = np.concatenate(chunks).flatten()[: MAX_SECONDS * SAMPLE_RATE]
+            if self.settings.get("audio_enhance", True):
+                try:
+                    audio = _enhance_audio(audio)
+                except Exception:
+                    logging.exception("audio enhance failed — using raw")
             self.on_state("transcribing", "")
             threading.Thread(target=self._transcribe,
                              args=(audio, elapsed, self.language), daemon=True).start()
@@ -645,6 +677,15 @@ class YallaFlow:
             self.engine.rebuild_chimes()
         elif key == "autostart":
             _apply_autostart(bool(value))
+        elif key == "idle_pill":
+            if value:
+                threading.Timer(0.1, self._show_pill_idle).start()
+            elif self.engine is None or not self.engine.recording:
+                self._pill_visible = False
+                try:
+                    self.pill_win.hide()
+                except Exception:
+                    pass
         return dict(self.settings)
 
     def set_language(self, lang):
@@ -844,6 +885,7 @@ class YallaFlow:
         self._bind_hotkeys()
         threading.Thread(target=self._level_pusher, daemon=True).start()
         threading.Thread(target=self._pill_follower, daemon=True).start()
+        threading.Timer(1.5, self._show_pill_idle).start()
 
     def _bind_hotkeys(self):
         if self.engine is None:
@@ -899,9 +941,9 @@ class YallaFlow:
             else:
                 logging.exception("pill rounding failed")
 
-    def _pill_pos(self):
-        """Bottom-center of whichever monitor the cursor is on (Wispr-style
-        multi-monitor follow). Uses the work area so it sits above the taskbar."""
+    def _pill_anchor(self):
+        """(center_x, bottom_y) on whichever monitor the cursor is on —
+        Wispr-style multi-monitor follow, above that monitor's taskbar."""
         try:
             class POINT(ctypes.Structure):
                 _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
@@ -924,23 +966,95 @@ class YallaFlow:
             mi.cbSize = ctypes.sizeof(MONITORINFO)
             u32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi))
             wk = mi.rcWork
-            return wk.l + (wk.r - wk.l) // 2 - 75, wk.b - 56
+            return wk.l + (wk.r - wk.l) // 2, wk.b - 18
         except Exception:
             return None
 
     def _move_pill(self):
-        pos = self._pill_pos()
-        if pos and self.pill_win is not None:
+        anchor = self._pill_anchor()
+        if anchor and self.pill_win is not None:
+            w, h = getattr(self, "_pill_wh", (MINI_W, MINI_H))
             try:
-                self.pill_win.move(pos[0], pos[1])
+                self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
             except Exception:
                 pass
 
     def _pill_follower(self):
         while not self.quitting:
-            if getattr(self, "_pill_visible", False):
+            if getattr(self, "_pill_visible", False) and \
+                    not getattr(self, "_pill_animating", False):
                 self._move_pill()
             time.sleep(0.35)
+
+    def _animate_pill(self, expand):
+        """Eased window-size animation between the idle bubble and the full
+        pill, anchored bottom-center so it grows in place."""
+        self._anim_token = getattr(self, "_anim_token", 0) + 1
+        token = self._anim_token
+        end = (PILL_W, PILL_H) if expand else (MINI_W, MINI_H)
+        start = getattr(self, "_pill_wh", (MINI_W, MINI_H))
+        if start == end:
+            return
+        anchor = self._pill_anchor()
+        if anchor is None or self.pill_win is None:
+            self._pill_wh = end
+            return
+        self._pill_animating = True
+        steps = 9
+        try:
+            for i in range(1, steps + 1):
+                if token != self._anim_token or self.quitting:
+                    return
+                t = 1 - (1 - i / steps) ** 3  # ease-out cubic
+                w = int(start[0] + (end[0] - start[0]) * t)
+                h = int(start[1] + (end[1] - start[1]) * t)
+                self.pill_win.resize(w, h)
+                self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
+                self._pill_wh = (w, h)
+                time.sleep(0.014)
+            self._pill_wh = end
+        except Exception:
+            self._pill_wh = end
+        finally:
+            if token == self._anim_token:
+                self._pill_animating = False
+
+    def _pill_to_idle(self):
+        """After recording/processing (or on error): settle into the idle
+        bubble, or hide entirely if the user turned the bubble off."""
+        if self.pill_win is None:
+            return
+        try:
+            if self.settings.get("idle_pill", True):
+                self._js(self.pill_win, "app.mode('mini')")
+                self._pill_visible = True
+                threading.Thread(target=self._animate_pill, args=(False,),
+                                 daemon=True).start()
+            else:
+                self._pill_visible = False
+                self.pill_win.hide()
+        except Exception:
+            pass
+
+    def _show_pill_idle(self):
+        """Startup: put the tiny idle bubble on screen (never activates)."""
+        if self.pill_win is None or self.engine is None:
+            return
+        if not self.settings.get("idle_pill", True):
+            return
+        try:
+            prev_fg = ctypes.windll.user32.GetForegroundWindow()
+            self.pill_win.show()
+            self._pill_wh = (PILL_W, PILL_H)
+            self.pill_win.resize(MINI_W, MINI_H)
+            self._pill_wh = (MINI_W, MINI_H)
+            self._js(self.pill_win, "app.mode('mini')")
+            self._move_pill()
+            self._pill_visible = True
+            threading.Timer(0.05, self._restore_focus, args=(prev_fg,)).start()
+            threading.Timer(0.25, self._round_pill).start()
+        except Exception:
+            logging.exception("idle pill show failed")
 
     def _on_state(self, state, detail):
         started = self.engine.started_at if state == "recording" else 0
@@ -962,20 +1076,20 @@ class YallaFlow:
                                     args=(prev_fg,)).start()
                     threading.Timer(0.25, self._round_pill).start()
                     self._js(self.pill_win, f"app.start({started})")
+                    threading.Thread(target=self._animate_pill, args=(True,),
+                                     daemon=True).start()
                 elif state in ("transcribing", "cleaning"):
-                    # keep the pill up with a spinner until the text lands
+                    # keep the pill expanded with a spinner until the text lands
                     self._pill_processing = True
                     self._js(self.pill_win, "app.mode('processing')")
                 elif getattr(self, "_pill_processing", False) and state == "idle":
-                    # designed exit: flash violet, slide down + fade, then hide
+                    # designed exit: flash violet, then ease back into the bubble
                     self._pill_processing = False
-                    self._pill_visible = False
                     self._js(self.pill_win, "app.done()")
-                    threading.Timer(0.4, self._hide_pill).start()
+                    threading.Timer(0.2, self._pill_to_idle).start()
                 else:
                     self._pill_processing = False
-                    self._pill_visible = False
-                    self.pill_win.hide()
+                    self._pill_to_idle()
             except Exception:
                 pass
 

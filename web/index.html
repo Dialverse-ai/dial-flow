@@ -537,6 +537,11 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
         <div class="section-label" style="margin-top:16px">MICROPHONE</div>
         <div class="set-card">
           <div class="set-row"><span class="sl">Input device</span><select id="sel-mic"></select></div>
+          <div class="set-row">
+            <div><div class="sl">Mic enhancement</div><div class="ss">boosts quiet speech, cuts low rumble — no added delay</div></div>
+            <div class="switch" id="enhance-switch" role="switch" tabindex="0" onclick="toggleEnhance()"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleEnhance()}"></div>
+          </div>
         </div>
         <div class="section-label" style="margin-top:16px">SYSTEM</div>
         <div class="set-card">
@@ -544,6 +549,11 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             <div><div class="sl">Start with Windows</div><div class="ss">launch quietly in the tray when you log in</div></div>
             <div class="switch" id="autostart-switch" role="switch" tabindex="0" onclick="toggleAutostart()"
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAutostart()}"></div>
+          </div>
+          <div class="set-row">
+            <div><div class="sl">Idle bubble</div><div class="ss">tiny reminder above the taskbar that expands when you record</div></div>
+            <div class="switch" id="idlepill-switch" role="switch" tabindex="0" onclick="toggleIdlePill()"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleIdlePill()}"></div>
           </div>
         </div>
         <div class="set-note" id="ver-note">Yalla Flow · by Dialverse · key stored on this device only</div>
@@ -974,6 +984,16 @@ function toggleAutostart(){
   $('autostart-switch').classList.toggle('on', on);
   setSetting('autostart', on);
 }
+function toggleIdlePill(){
+  const on = !$('idlepill-switch').classList.contains('on');
+  $('idlepill-switch').classList.toggle('on', on);
+  setSetting('idle_pill', on);
+}
+function toggleEnhance(){
+  const on = !$('enhance-switch').classList.contains('on');
+  $('enhance-switch').classList.toggle('on', on);
+  setSetting('audio_enhance', on);
+}
 function setSetting(key, value){ S[key] = value; api('set_setting', key, value); }
 function renderHints(){
   const rk = (S.record_key || 'f9').toUpperCase();
@@ -1039,6 +1059,8 @@ function boot(init){
   $('flow-sub').textContent = S.flow_mode ? 'tidies filler & punctuation' : 'off — exactly as spoken';
   $('chime-switch').classList.toggle('on', S.chime_on !== false);
   $('autostart-switch').classList.toggle('on', !!S.autostart);
+  $('idlepill-switch').classList.toggle('on', S.idle_pill !== false);
+  $('enhance-switch').classList.toggle('on', S.audio_enhance !== false);
   $('vol').value = S.chime_volume ?? 40;
   $('vol').style.setProperty('--val', $('vol').value + '%');
   $('vol-val').textContent = $('vol').value + '%';
