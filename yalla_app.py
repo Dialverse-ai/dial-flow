@@ -1,0 +1,1031 @@
+"""Yalla Flow 2.0 — Arabic+English dictation with a GPU-composited web UI.
+
+Architecture: Python engine (recording, Cohere transcription, Flow cleanup,
+hotkeys, tray, chimes) + pywebview/WebView2 frontend (web/index.html) for
+true 60fps animation. Config lives in %APPDATA%\\ArabicDictation (frozen)
+or the project dir (dev). Errors go to app.log.
+"""
+
+import base64
+import ctypes
+import io
+import json
+import logging
+import os
+import queue
+import re
+import sys
+import threading
+import shutil
+import time
+import wave
+import webbrowser
+import winreg
+import winsound
+from datetime import datetime
+
+import keyboard
+import numpy as np
+import pyperclip
+import pystray
+import requests
+import sounddevice as sd
+import soundfile as sf
+import webview
+from dotenv import load_dotenv
+from PIL import Image
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    RESOURCE_DIR = sys._MEIPASS
+    CONFIG_DIR = os.path.join(os.environ.get("APPDATA", APP_DIR), "ArabicDictation")
+else:
+    RESOURCE_DIR = APP_DIR
+    CONFIG_DIR = APP_DIR
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
+API_URL = "https://api.cohere.com/v2/audio/transcriptions"
+CHAT_URL = "https://api.cohere.com/v2/chat"
+MODELS_URL = "https://api.cohere.com/v1/models"
+MODEL = "cohere-transcribe-arabic-07-2026"
+CLEANUP_MODELS = ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"]
+SAMPLE_RATE = 16000
+MAX_SECONDS = 300
+ENV_FILE = os.path.join(CONFIG_DIR, ".env")
+ICON_FILE = os.path.join(RESOURCE_DIR, "app.ico")
+UI_FILE = os.path.join(RESOURCE_DIR, "web", "index.html")
+HISTORY_FILE = os.path.join(CONFIG_DIR, "history.json")
+SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
+AUDIO_DIR = os.path.join(CONFIG_DIR, "audio")
+AUDIO_KEEP = 40  # rolling cap of kept recordings (~10MB worst case)
+
+logging.basicConfig(filename=os.path.join(CONFIG_DIR, "app.log"), level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(message)s")
+
+DEFAULT_SETTINGS = {
+    "flow_mode": True,
+    "rec_mode": "toggle",
+    "record_key": "f9",
+    "lang_key": "f10",
+    "chime_on": True,
+    "chime_volume": 40,
+    "mic_device": "",
+    "dictionary": "dialverse = Dialverse",
+    "language": "ar",
+    "autostart": False,
+}
+
+
+def _apply_autostart(enabled):
+    """Register/unregister launch-at-login via the per-user Run key —
+    the no-installer way to start with Windows. Only meaningful when frozen."""
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                             r"Software\Microsoft\Windows\CurrentVersion\Run",
+                             0, winreg.KEY_SET_VALUE)
+        if enabled and getattr(sys, "frozen", False):
+            winreg.SetValueEx(key, "YallaFlow", 0, winreg.REG_SZ,
+                              f'"{sys.executable}" --minimized')
+        else:
+            try:
+                winreg.DeleteValue(key, "YallaFlow")
+            except FileNotFoundError:
+                pass
+        winreg.CloseKey(key)
+    except OSError:
+        logging.exception("autostart update failed")
+
+PILL_HTML = """<!DOCTYPE html><html><head><style>
+*{margin:0;padding:0}html,body{background:#1C1926;overflow:hidden}
+body{font-family:'Segoe UI',sans-serif;height:100vh;display:flex;align-items:center;
+justify-content:center;gap:8px;box-sizing:border-box;
+transition:opacity .22s ease,transform .22s ease}
+body.exit{opacity:0;transform:translateY(8px)}
+.dot{width:9px;height:9px;border-radius:99px;background:#F26B5E;flex:none;
+animation:pulse 1.5s ease-in-out infinite;transition:opacity .18s ease}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.7)}}
+#t{font-size:13px;font-weight:600;color:#F5F3FA;font-variant-numeric:tabular-nums;
+transition:opacity .18s ease}
+#wave{display:flex;align-items:center;gap:2px}
+#wave i{width:2px;border-radius:1px;background:#F26B5E;height:5px;
+transition:background .25s ease,height .18s ease}
+#spin{width:13px;height:13px;border-radius:99px;border:2px solid rgba(159,139,255,.25);
+border-top-color:#9F8BFF;animation:rot .8s linear infinite;display:none;flex:none;
+opacity:0;transition:opacity .18s ease}
+@keyframes rot{to{transform:rotate(360deg)}}
+body.processing .dot,body.processing #t{display:none}
+body.processing #spin{display:block;opacity:1}
+body.processing #wave{gap:3.5px}
+body.processing #wave i{background:#8F86B8;width:2.5px;height:2.5px!important;
+border-radius:99px;animation:shim 1.3s ease-in-out infinite}
+@keyframes shim{0%,100%{opacity:.2}50%{opacity:.85}}
+body.flash #wave i{background:#9F8BFF}
+</style></head><body>
+<div class="dot"></div><div id="t">0:00</div>
+<div id="wave"></div>
+<div id="spin"></div>
+<script>
+let startedAt=0,level=0,disp=0;const N=12;
+const wave=document.getElementById('wave');
+for(let i=0;i<N;i++){const b=document.createElement('i');
+b.style.animationDelay=(i*0.1)+'s';wave.appendChild(b);}
+const bars=wave.children;
+window.app={
+ start(ts){startedAt=ts;document.body.className='';},
+ level(v){level=v},
+ mode(m){document.body.className=m==='processing'?'processing':'';},
+ done(){document.body.classList.add('flash');
+  setTimeout(()=>document.body.classList.add('exit'),120);}
+};
+function raf(){
+ disp+=(Math.min(1,level*9)-disp)*(level*9>disp?0.35:0.08);
+ const t=performance.now()/1000;
+ if(!document.body.classList.contains('processing')){
+  for(let i=0;i<N;i++){
+   const wig=0.6+0.4*Math.sin(t*9+i*1.1);
+   bars[i].style.height=Math.max(3,(3+14*disp)*wig)+'px';
+  }
+  if(startedAt){
+   const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
+   document.getElementById('t').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  }
+ }
+ requestAnimationFrame(raf);}
+requestAnimationFrame(raf);
+</script></body></html>"""
+
+
+class Settings(dict):
+    def __init__(self):
+        super().__init__(DEFAULT_SETTINGS)
+        try:
+            with open(SETTINGS_FILE, encoding="utf-8") as f:
+                self.update(json.load(f))
+        except (OSError, ValueError):
+            pass
+
+    def save(self):
+        try:
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(dict(self), f, ensure_ascii=False, indent=1)
+        except OSError:
+            logging.exception("settings save failed")
+
+
+def _bar_note(freq, dur, sr):
+    """One soft struck-bar (marimba-like) note: warm detuned harmonics with a
+    fast attack and natural exponential decay — not a raw electronic sine."""
+    n = int(sr * dur)
+    t = np.arange(n) / sr
+    env = np.exp(-t * 16.0)
+    attack = min(int(sr * 0.004), n)
+    env[:attack] *= np.linspace(0.0, 1.0, attack)
+    w = (np.sin(2 * np.pi * freq * t)
+         + 0.34 * np.sin(2 * np.pi * freq * 2.008 * t)
+         + 0.13 * np.sin(2 * np.pi * freq * 3.011 * t))
+    return w * env
+
+
+def _chime_wav(notes, amp, sr=44100):
+    """notes: (freq_hz, offset_ms) pairs layered into one soft chime."""
+    total_len = int(sr * 0.45)
+    mix = np.zeros(total_len)
+    for freq, off_ms in notes:
+        note = _bar_note(freq, 0.38, sr)
+        i0 = int(sr * off_ms / 1000)
+        end = min(total_len, i0 + len(note))
+        mix[i0:end] += note[:end - i0]
+    peak = np.max(np.abs(mix))
+    if peak > 0:
+        mix *= amp / peak
+    pcm = (mix * 32767).astype("<i2")
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(sr)
+        f.writeframes(pcm.tobytes())
+    return buf.getvalue()
+
+
+def _parse_dictionary(text):
+    pairs = []
+    for line in text.splitlines():
+        if "=" in line:
+            a, b = line.split("=", 1)
+        elif "->" in line:
+            a, b = line.split("->", 1)
+        else:
+            continue
+        a, b = a.strip(), b.strip()
+        if a and b:
+            pairs.append((a, b))
+    return pairs
+
+
+def _apply_dictionary(text, pairs):
+    for a, b in pairs:
+        if a.isascii():
+            text = re.sub(rf"\b{re.escape(a)}\b", b, text, flags=re.IGNORECASE)
+        else:
+            text = text.replace(a, b)
+    return text
+
+
+class Engine:
+    """Recording + transcription + optional AI cleanup. UI-agnostic."""
+
+    def __init__(self, api_key, settings, on_state, on_transcript, on_language):
+        self.api_key = api_key
+        self.settings = settings
+        self.on_state = on_state
+        self.on_transcript = on_transcript
+        self.on_language = on_language
+        self.language = settings.get("language", "ar")
+        self.recording = False
+        self.frames = queue.Queue()
+        self.stream = None
+        self.started_at = None
+        self.level = 0.0
+        self.lock = threading.Lock()
+        self._clean_model_idx = 0
+        self.rebuild_chimes()
+
+    def rebuild_chimes(self):
+        amp = max(0, min(100, self.settings.get("chime_volume", 40))) / 100 * 0.5
+        # gentle marimba: rising fifth on start, falling fourth on stop
+        self.start_wav = _chime_wav([(659, 0), (988, 70)], amp)
+        self.stop_wav = _chime_wav([(880, 0), (587, 65)], amp)
+
+    def _play(self, wav_bytes, block):
+        if not self.settings.get("chime_on", True):
+            return
+        if block:
+            winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
+        else:
+            threading.Thread(target=winsound.PlaySound,
+                             args=(wav_bytes, winsound.SND_MEMORY),
+                             daemon=True).start()
+
+    def _audio_callback(self, indata, frames_count, time_info, status):
+        if self.recording:
+            self.frames.put(indata.copy())
+            self.level = float(np.sqrt(np.mean(indata ** 2)))
+
+    def _resolve_device(self):
+        name = self.settings.get("mic_device", "")
+        if not name:
+            return None
+        for i, dev in enumerate(sd.query_devices()):
+            if dev["max_input_channels"] > 0 and dev["name"] == name:
+                return i
+        return None
+
+    def toggle_language(self):
+        self.language = "en" if self.language == "ar" else "ar"
+        self.settings["language"] = self.language
+        self.settings.save()
+        self.on_language(self.language)
+
+    def start_recording(self):
+        try:
+            self._start_inner()
+        except Exception as e:
+            logging.exception("start_recording failed")
+            self.recording = False
+            self.on_state("error", f"Error: {e}")
+
+    def stop_recording(self):
+        try:
+            self._stop_inner()
+        except Exception as e:
+            logging.exception("stop_recording failed")
+            self.recording = False
+            self.on_state("error", f"Error: {e}")
+
+    def toggle_recording(self):
+        if self.recording:
+            self.stop_recording()
+        else:
+            self.start_recording()
+
+    def _start_inner(self):
+        with self.lock:
+            if self.recording:
+                return
+            self._play(self.start_wav, block=True)  # before the mic opens
+            self.frames = queue.Queue()
+            try:
+                self.stream = sd.InputStream(
+                    samplerate=SAMPLE_RATE, channels=1, dtype="float32",
+                    device=self._resolve_device(),
+                    callback=self._audio_callback,
+                )
+                self.stream.start()
+            except Exception as e:
+                logging.exception("mic open failed")
+                self.on_state("error", f"Mic error: {e}")
+                return
+            self.recording = True
+            self.started_at = time.time()
+            self.on_state("recording", "")
+
+    def _stop_inner(self):
+        with self.lock:
+            if not self.recording:
+                return
+            self.recording = False
+            self.level = 0.0
+            self.stream.stop()
+            self.stream.close()
+            self._play(self.stop_wav, block=False)
+            elapsed = time.time() - self.started_at
+            chunks = []
+            while not self.frames.empty():
+                chunks.append(self.frames.get())
+            if not chunks or elapsed < 0.3:
+                self.on_state("idle", "Too short — ignored")
+                return
+            audio = np.concatenate(chunks).flatten()[: MAX_SECONDS * SAMPLE_RATE]
+            self.on_state("transcribing", "")
+            threading.Thread(target=self._transcribe,
+                             args=(audio, elapsed, self.language), daemon=True).start()
+
+    def _transcribe(self, audio, duration, lang):
+        t0 = time.time()
+        buf = io.BytesIO()
+        sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
+        buf.seek(0)
+        try:
+            resp = requests.post(
+                API_URL,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                data={"model": MODEL, "language": lang},
+                files={"file": ("audio.wav", buf, "audio/wav")},
+                timeout=60,
+            )
+        except requests.RequestException:
+            logging.exception("api call failed")
+            self.on_state("error", "Network error — check connection")
+            return
+        if resp.status_code == 429:
+            self.on_state("error", "Rate limited — wait a few seconds")
+            return
+        if resp.status_code != 200:
+            logging.error("api %s: %s", resp.status_code, resp.text[:300])
+            self.on_state("error", f"API error {resp.status_code}")
+            return
+        text = resp.json().get("text", "").strip()
+        if not text:
+            self.on_state("idle", "Nothing recognized")
+            return
+
+        # keep the recording so a bad transcript can be retried on the same
+        # audio later (rolling cap; oldest pruned)
+        audio_name = ""
+        try:
+            os.makedirs(AUDIO_DIR, exist_ok=True)
+            audio_name = f"{int(t0 * 1000)}.wav"
+            with open(os.path.join(AUDIO_DIR, audio_name), "wb") as f:
+                f.write(buf.getvalue())
+            for old in sorted(os.listdir(AUDIO_DIR))[:-AUDIO_KEEP]:
+                os.remove(os.path.join(AUDIO_DIR, old))
+        except OSError:
+            logging.exception("audio save failed")
+            audio_name = ""
+
+        raw_text = text
+        cleaned = False
+        if self.settings.get("flow_mode", True):
+            self.on_state("cleaning", "")
+            out = self._flow_clean(text)
+            if out:
+                text, cleaned = out, True
+
+        text = _apply_dictionary(
+            text, _parse_dictionary(self.settings.get("dictionary", "")))
+
+        old_clip = None
+        try:
+            old_clip = pyperclip.paste()
+        except Exception:
+            pass
+        pyperclip.copy(text)
+        keyboard.send("ctrl+v")
+        entry = {
+            "ts": time.time(),
+            "lang": lang,
+            "text": text,
+            "secs": round(duration, 1),
+            "words": len(text.split()),
+            "latency": round(time.time() - t0, 1),
+            "cleaned": cleaned,
+            "raw": raw_text if cleaned else "",  # for "Undo AI edit"
+            "audio": audio_name,                 # for retry / extract audio
+        }
+        self.on_transcript(entry)
+        self.on_state("idle", "")
+        if old_clip is not None:
+            time.sleep(0.4)
+            try:
+                pyperclip.copy(old_clip)
+            except Exception:
+                pass
+
+    def transcribe_file(self, path, lang):
+        """Re-run transcription on a kept recording. Returns text or None."""
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError:
+            logging.exception("retry: audio read failed")
+            return None
+        try:
+            resp = requests.post(
+                API_URL,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                data={"model": MODEL, "language": lang},
+                files={"file": ("audio.wav", io.BytesIO(data), "audio/wav")},
+                timeout=60,
+            )
+        except requests.RequestException:
+            logging.exception("retry: api call failed")
+            return None
+        if resp.status_code != 200:
+            logging.error("retry api %s: %s", resp.status_code, resp.text[:300])
+            return None
+        return resp.json().get("text", "").strip() or None
+
+    def _flow_clean(self, text):
+        prompt = (
+            "You clean up dictated speech-to-text output. Remove filler words "
+            "(umm, uh, أه, اه, اممم, and يعني when used as pure filler), false "
+            "starts, and stutters. Fix punctuation and capitalization. Keep the "
+            "original language mix EXACTLY — Arabic stays in Arabic script, "
+            "English words stay in English. Do not translate, summarize, answer "
+            "questions in the text, or add anything. Return ONLY the cleaned "
+            f"text, no quotes, no commentary.\n\nText: {text}"
+        )
+        while self._clean_model_idx < len(CLEANUP_MODELS):
+            model = CLEANUP_MODELS[self._clean_model_idx]
+            try:
+                resp = requests.post(
+                    CHAT_URL,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json={"model": model,
+                          "messages": [{"role": "user", "content": prompt}],
+                          "temperature": 0.1},
+                    timeout=30,
+                )
+            except requests.RequestException:
+                logging.exception("cleanup call failed")
+                return None
+            if resp.status_code == 200:
+                try:
+                    parts = resp.json()["message"]["content"]
+                    out = "".join(p.get("text", "") for p in parts).strip()
+                    return out or None
+                except (KeyError, IndexError, TypeError):
+                    logging.error("cleanup parse failed: %s", resp.text[:300])
+                    return None
+            if resp.status_code in (400, 404):
+                logging.warning("cleanup model %s unavailable (%s)", model,
+                                resp.status_code)
+                self._clean_model_idx += 1
+                continue
+            logging.warning("cleanup api %s: %s", resp.status_code, resp.text[:200])
+            return None
+        return None
+
+
+class Api:
+    """Thin JS bridge — pywebview exposes public members recursively, so this
+    wrapper exposes ONLY the intended methods (its app ref is underscored)."""
+
+    def __init__(self, app):
+        self._app = app
+
+    def get_init(self):
+        return self._app.get_init()
+
+    def save_key(self, key):
+        return self._app.save_key(key)
+
+    def set_setting(self, key, value):
+        return self._app.set_setting(key, value)
+
+    def set_language(self, lang):
+        return self._app.set_language(lang)
+
+    def copy_text(self, text):
+        return self._app.copy_text(text)
+
+    def export_history(self):
+        return self._app.export_history()
+
+    def open_link(self, url):
+        return self._app.open_link(url)
+
+    def undo_ai(self, ts):
+        return self._app.undo_ai(ts)
+
+    def retry_entry(self, ts):
+        return self._app.retry_entry(ts)
+
+    def extract_audio(self, ts):
+        return self._app.extract_audio(ts)
+
+    def delete_entry(self, ts):
+        return self._app.delete_entry(ts)
+
+    def quit(self):
+        return self._app.quit()
+
+
+class YallaFlow:
+    """Bridges the engine to the web UI."""
+
+    def __init__(self):
+        self.settings = Settings()
+        self.engine = None
+        self.main_win = None
+        self.pill_win = None
+        self.tray = None
+        self.quitting = False
+        self.history = self._load_history()
+
+    # ---------- js api ----------
+
+    def get_init(self):
+        load_dotenv(ENV_FILE)
+        key = os.environ.get("COHERE_API_KEY")
+        logo = ""
+        try:
+            img = Image.open(ICON_FILE)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            logo = base64.b64encode(buf.getvalue()).decode()
+        except Exception:
+            pass
+        if key and self.engine is None:
+            self._boot_engine(key)
+        user = (os.environ.get("USERNAME") or "").split(" ")[0].split(".")[0]
+        return {
+            "key_set": bool(key),
+            "logo": logo,
+            "user": user.capitalize() if user else "",
+            "settings": dict(self.settings),
+            "history": self.history[-500:],
+            "devices": self._devices(),
+        }
+
+    def save_key(self, key):
+        key = (key or "").strip()
+        try:
+            r = requests.get(MODELS_URL,
+                             headers={"Authorization": f"Bearer {key}"}, timeout=10)
+            ok = r.status_code == 200
+        except requests.RequestException:
+            ok = False
+        if not ok:
+            return {"ok": False}
+        with open(ENV_FILE, "w", encoding="utf-8") as f:
+            f.write(f"COHERE_API_KEY={key}\n")
+        os.environ["COHERE_API_KEY"] = key
+        logging.info("api key saved on first run")
+        self._boot_engine(key)
+        return {"ok": True, "init": {
+            "settings": dict(self.settings),
+            "history": self.history[-500:],
+            "devices": self._devices(),
+        }}
+
+    def set_setting(self, key, value):
+        self.settings[key] = value
+        self.settings.save()
+        if key in ("rec_mode", "record_key", "lang_key"):
+            self._bind_hotkeys()
+        elif key == "chime_volume" and self.engine:
+            self.engine.rebuild_chimes()
+        elif key == "autostart":
+            _apply_autostart(bool(value))
+        return dict(self.settings)
+
+    def set_language(self, lang):
+        if self.engine:
+            self.engine.language = lang
+        self.settings["language"] = lang
+        self.settings.save()
+
+    def copy_text(self, text):
+        pyperclip.copy(text)
+
+    def export_history(self):
+        if not self.history or self.main_win is None:
+            return None
+        path = self.main_win.create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=f"dictations_{datetime.now():%Y-%m-%d}.txt")
+        if not path:
+            return None
+        if isinstance(path, (list, tuple)):
+            path = path[0]
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                for e in self.history:
+                    when = datetime.fromtimestamp(e["ts"]).strftime("%Y-%m-%d %H:%M")
+                    f.write(f"[{when}] ({e['lang']}) {e['text']}\n\n")
+            return len(self.history)
+        except OSError:
+            logging.exception("export failed")
+            return None
+
+    def open_link(self, url):
+        if url.startswith("https://"):
+            webbrowser.open(url)
+
+    # ---------- per-transcript actions ----------
+
+    def _find_entry(self, ts):
+        for e in self.history:
+            if e.get("ts") == ts:
+                return e
+        return None
+
+    def undo_ai(self, ts):
+        e = self._find_entry(ts)
+        if not e or not e.get("raw"):
+            return None
+        e["text"] = e["raw"]
+        e["words"] = len(e["text"].split())
+        e["cleaned"] = False
+        e["raw"] = ""
+        self._save_history()
+        return e
+
+    def delete_entry(self, ts):
+        e = self._find_entry(ts)
+        if not e:
+            return False
+        self.history.remove(e)
+        if e.get("audio"):
+            try:
+                os.remove(os.path.join(AUDIO_DIR, e["audio"]))
+            except OSError:
+                pass
+        self._save_history()
+        return True
+
+    def extract_audio(self, ts):
+        e = self._find_entry(ts)
+        if not e or not e.get("audio") or self.main_win is None:
+            return None
+        src = os.path.join(AUDIO_DIR, e["audio"])
+        if not os.path.exists(src):
+            return None
+        stamp = datetime.fromtimestamp(e["ts"]).strftime("%Y-%m-%d_%H%M")
+        path = self.main_win.create_file_dialog(
+            webview.SAVE_DIALOG, save_filename=f"dictation_{stamp}.wav")
+        if not path:
+            return None
+        if isinstance(path, (list, tuple)):
+            path = path[0]
+        try:
+            shutil.copyfile(src, path)
+            return True
+        except OSError:
+            logging.exception("extract audio failed")
+            return None
+
+    def retry_entry(self, ts):
+        e = self._find_entry(ts)
+        if (not e or not e.get("audio") or self.engine is None
+                or self.engine.recording):
+            return False
+        threading.Thread(target=self._retry_worker, args=(e,), daemon=True).start()
+        return True
+
+    def _retry_worker(self, e):
+        path = os.path.join(AUDIO_DIR, e["audio"])
+        self._on_state("transcribing", "")
+        text = self.engine.transcribe_file(path, e.get("lang", "ar"))
+        if not text:
+            self._on_state("error", "Retry failed — see app.log")
+            return
+        raw = text
+        cleaned = False
+        if self.settings.get("flow_mode", True):
+            self._on_state("cleaning", "")
+            out = self.engine._flow_clean(text)
+            if out:
+                text, cleaned = out, True
+        text = _apply_dictionary(
+            text, _parse_dictionary(self.settings.get("dictionary", "")))
+        e["text"] = text
+        e["words"] = len(text.split())
+        e["cleaned"] = cleaned
+        e["raw"] = raw if cleaned else ""
+        self._save_history()
+        self._js(self.main_win,
+                 f"app.updateEntry({json.dumps(e, ensure_ascii=False)})")
+        self._on_state("idle", "Transcript updated")
+
+    def quit(self):
+        self._shutdown()
+
+    # ---------- engine wiring ----------
+
+    def _boot_engine(self, key):
+        self.engine = Engine(key, self.settings, self._on_state,
+                             self._on_transcript, self._on_language)
+        self._bind_hotkeys()
+        threading.Thread(target=self._level_pusher, daemon=True).start()
+        threading.Thread(target=self._pill_follower, daemon=True).start()
+
+    def _bind_hotkeys(self):
+        if self.engine is None:
+            return
+        keyboard.unhook_all()
+        rk = self.settings["record_key"]
+        lk = self.settings["lang_key"]
+        if self.settings["rec_mode"] == "hold":
+            keyboard.on_press_key(rk, lambda e: self.engine.start_recording(),
+                                  suppress=False)
+            keyboard.on_release_key(rk, lambda e: self.engine.stop_recording(),
+                                    suppress=False)
+        else:
+            keyboard.add_hotkey(rk, self.engine.toggle_recording, suppress=False)
+        keyboard.add_hotkey(lk, self.engine.toggle_language, suppress=False)
+
+    def _js(self, win, code):
+        if win is None or self.quitting:
+            return
+        try:
+            win.evaluate_js(code)
+        except Exception:
+            pass
+
+    def _round_pill(self, attempt=0):
+        """Round the pill via the DWM compositor — GDI window regions are
+        ignored by WebView2's composited rendering, but DWM corner preference
+        (the API behind every Win11 app's rounded corners) always applies.
+        Must run after the first show(); hidden windows have no native form."""
+        if getattr(self, "_pill_rounded", False):
+            return
+        try:
+            h = self.pill_win.native.Handle
+            phwnd = int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
+            corner = ctypes.c_int(2)  # DWMWCP_ROUND
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                phwnd, 33, ctypes.byref(corner), 4)
+            border = ctypes.c_uint(0x00452D32)  # COLORREF BGR of #322D45
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                phwnd, 34, ctypes.byref(border), 4)
+            self._pill_rounded = True
+        except Exception:
+            if attempt < 4:
+                threading.Timer(0.4, self._round_pill,
+                                args=(attempt + 1,)).start()
+            else:
+                logging.exception("pill rounding failed")
+
+    def _pill_pos(self):
+        """Bottom-center of whichever monitor the cursor is on (Wispr-style
+        multi-monitor follow). Uses the work area so it sits above the taskbar."""
+        try:
+            class POINT(ctypes.Structure):
+                _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+            class MRECT(ctypes.Structure):
+                _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long),
+                            ("r", ctypes.c_long), ("b", ctypes.c_long)]
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", MRECT),
+                            ("rcWork", MRECT), ("dwFlags", ctypes.c_ulong)]
+
+            u32 = ctypes.windll.user32
+            pt = POINT()
+            u32.GetCursorPos(ctypes.byref(pt))
+            u32.MonitorFromPoint.argtypes = [POINT, ctypes.c_ulong]
+            u32.MonitorFromPoint.restype = ctypes.c_void_p
+            hmon = u32.MonitorFromPoint(pt, 2)  # MONITOR_DEFAULTTONEAREST
+            mi = MONITORINFO()
+            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            u32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi))
+            wk = mi.rcWork
+            return wk.l + (wk.r - wk.l) // 2 - 75, wk.b - 56
+        except Exception:
+            return None
+
+    def _move_pill(self):
+        pos = self._pill_pos()
+        if pos and self.pill_win is not None:
+            try:
+                self.pill_win.move(pos[0], pos[1])
+            except Exception:
+                pass
+
+    def _pill_follower(self):
+        while not self.quitting:
+            if getattr(self, "_pill_visible", False):
+                self._move_pill()
+            time.sleep(0.35)
+
+    def _on_state(self, state, detail):
+        started = self.engine.started_at if state == "recording" else 0
+        self._js(self.main_win,
+                 f"app.setState({json.dumps(state)}, {json.dumps(detail)}, "
+                 f"{started or 0})")
+        if self.pill_win is not None:
+            try:
+                if state == "recording":
+                    self._move_pill()
+                    self.pill_win.show()
+                    self._pill_visible = True
+                    self._pill_processing = False
+                    threading.Timer(0.25, self._round_pill).start()
+                    self._js(self.pill_win, f"app.start({started})")
+                elif state in ("transcribing", "cleaning"):
+                    # keep the pill up with a spinner until the text lands
+                    self._pill_processing = True
+                    self._js(self.pill_win, "app.mode('processing')")
+                elif getattr(self, "_pill_processing", False) and state == "idle":
+                    # designed exit: flash violet, slide down + fade, then hide
+                    self._pill_processing = False
+                    self._pill_visible = False
+                    self._js(self.pill_win, "app.done()")
+                    threading.Timer(0.4, self._hide_pill).start()
+                else:
+                    self._pill_processing = False
+                    self._pill_visible = False
+                    self.pill_win.hide()
+            except Exception:
+                pass
+
+    def _hide_pill(self):
+        try:
+            self.pill_win.hide()
+        except Exception:
+            pass
+
+    def _on_transcript(self, entry):
+        self.history.append(entry)
+        self._save_history()
+        self._js(self.main_win, f"app.addEntry({json.dumps(entry, ensure_ascii=False)})")
+
+    def _on_language(self, lang):
+        self._js(self.main_win, f"app.setLanguage({json.dumps(lang)})")
+
+    def _level_pusher(self):
+        while not self.quitting:
+            if self.engine is not None and self.engine.recording:
+                lv = round(self.engine.level, 4)
+                self._js(self.main_win, f"app.setLevel({lv})")
+                self._js(self.pill_win, f"app.level({lv})")
+                time.sleep(0.04)
+            else:
+                time.sleep(0.15)
+
+    # ---------- windows / tray ----------
+
+    def _devices(self):
+        try:
+            return ["System default"] + sorted({
+                d["name"] for d in sd.query_devices()
+                if d["max_input_channels"] > 0})
+        except Exception:
+            return ["System default"]
+
+    def _load_history(self):
+        try:
+            with open(HISTORY_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return []
+
+    def _save_history(self):
+        try:
+            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.history[-500:], f, ensure_ascii=False, indent=1)
+        except OSError:
+            logging.exception("history save failed")
+
+    def _setup_tray(self):
+        try:
+            img = Image.open(ICON_FILE)
+            menu = pystray.Menu(
+                pystray.MenuItem("Open Yalla Flow",
+                                 lambda: self._show_main(), default=True),
+                pystray.MenuItem("Quit", lambda: self._shutdown()),
+            )
+            self.tray = pystray.Icon("YallaFlow", img,
+                                     "Yalla Flow — F9 to record", menu)
+            threading.Thread(target=self.tray.run, daemon=True).start()
+        except Exception:
+            logging.exception("tray setup failed")
+            self.tray = None
+
+    def _show_main(self):
+        try:
+            self.main_win.show()
+            self.main_win.restore()
+        except Exception:
+            pass
+
+    def _on_closing(self):
+        """Window X pressed: hide to tray instead of quitting."""
+        if self.quitting or self.tray is None:
+            return True
+        try:
+            self.main_win.hide()
+            if not self.settings.get("_tray_tip_shown"):
+                self.settings["_tray_tip_shown"] = True
+                self.settings.save()
+                try:
+                    self.tray.notify("Still running — hotkeys stay active. "
+                                     "Right-click the tray icon to quit.",
+                                     "Yalla Flow")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return False
+
+    def _shutdown(self):
+        if self.quitting:
+            return
+        self.quitting = True
+        try:
+            keyboard.unhook_all()
+        except Exception:
+            pass
+        if self.tray is not None:
+            try:
+                self.tray.stop()
+            except Exception:
+                pass
+        for w in list(webview.windows):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+
+    def _post_start(self):
+        self._setup_tray()
+        # keep the Run-key path fresh in case the exe was moved
+        if self.settings.get("autostart") and getattr(sys, "frozen", False):
+            _apply_autostart(True)
+        # launched at login: start quietly in the tray
+        if "--minimized" in sys.argv:
+            try:
+                self.main_win.hide()
+            except Exception:
+                pass
+        # dark titlebar + rounded pill region (best effort)
+        def _hwnd(win):
+            h = win.native.Handle
+            return int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
+
+        try:
+            hwnd = _hwnd(self.main_win)
+            val = ctypes.c_int(1)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20,
+                                                       ctypes.byref(val), 4)
+        except Exception:
+            logging.exception("dark titlebar failed")
+        # pill region is applied on first show — hidden pywebview windows
+        # have no native form yet, so it can't be rounded here
+
+    def run(self):
+        sw = ctypes.windll.user32.GetSystemMetrics(0)
+        sh = ctypes.windll.user32.GetSystemMetrics(1)
+        self.main_win = webview.create_window(
+            "Yalla Flow", UI_FILE, js_api=Api(self),
+            width=1160, height=780, min_size=(960, 640),
+            background_color="#F7F3EC")
+        self.main_win.events.closing += self._on_closing
+        self.pill_win = webview.create_window(
+            "Yalla Flow — recording", html=PILL_HTML,
+            width=150, height=38, x=sw // 2 - 75, y=sh - 118,
+            min_size=(150, 38),  # pywebview's default min is 200x100 — would inflate the pill
+            frameless=True, on_top=True, hidden=True, resizable=False,
+            focus=False, background_color="#1C1926")
+        logging.info("app started")
+        webview.start(func=self._post_start, debug=False)
+
+
+def main():
+    ctypes.windll.kernel32.CreateMutexW(None, False, "YallaFlow.Singleton")
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        ctypes.windll.user32.MessageBoxW(
+            None, "Yalla Flow is already running — check your taskbar or "
+                  "system tray.", "Yalla Flow", 0x40)
+        return
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+        "Dialverse.YallaFlow")
+    YallaFlow().run()
+
+
+if __name__ == "__main__":
+    main()

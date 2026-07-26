@@ -1,0 +1,11 @@
+pywebview>=6.2
+keyboard
+sounddevice
+soundfile
+numpy
+pyperclip
+pystray
+pillow
+requests
+python-dotenv
+pyinstaller

@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Yalla Flow</title>
+<style>
+:root{
+  --bg:#F7F3EC; --sidebar:#F1EBDF; --surface:#FFFFFF; --field:#FBF9F4; --tint:#F4EFE5;
+  --border:#E7DFCE; --border-strong:#D9CFBB; --divider:#F0EADC; --outer:#E0D7C5;
+  --text:#2E2A24; --text2:#6E675C; --muted:#9A9285; --faint:#B3A996;
+  --accent:#6C55E8; --accent-hover:#5A45D0; --accent-text:#5240C9;
+  --accent-tint:#EEEAFC; --accent-tint-b:#DED6F9; --accent-soft:#E4DBF9;
+  --rec:#D0453E; --rec-tint:#FAE9E6; --rec-tint-b:#F0D2CC; --rec-text:#B23730;
+  --warn:#B07818; --warn-tint:#F7EED9; --warn-tint-b:#EADCBB; --warn-text:#8F6510;
+  --ok:#3E8E5A; --ok-tint:#E6F2E8; --ok-tint-b:#CFE5D4; --ok-text:#2F7A4C;
+  --meter-idle:#DED5C2;
+  --sh-card:0 1px 2px rgba(46,42,36,.05); --sh-chip:0 1px 2px rgba(46,42,36,.08);
+  --sh-pop:0 12px 32px -8px rgba(46,42,36,.25);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow:hidden}
+body{font-family:'Segoe UI','Segoe UI Variable',system-ui,sans-serif;color:var(--text);
+  -webkit-font-smoothing:antialiased;font-size:13px}
+button{font-family:inherit;border:none;cursor:pointer;background:none;color:inherit}
+input,select{font-family:inherit;outline:none}
+svg{flex:none}
+.serif{font-family:Georgia,'Times New Roman',serif;font-weight:400}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#C9BDA4}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{
+  outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(108,85,232,.14)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@keyframes yfPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.55}}
+@keyframes yfSpin{to{transform:rotate(360deg)}}
+.view{display:none;height:100%}
+.view.active{display:flex}
+
+/* ===== setup ===== */
+#setup{flex-direction:column;align-items:center;justify-content:center;background:var(--bg)}
+.setup-box{display:flex;flex-direction:column;align-items:center;text-align:center;
+  animation:fadeUp .35s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.setup-box img{width:56px;height:56px}
+.setup-box h1{font-family:Georgia,serif;font-weight:400;font-size:30px;margin-top:18px}
+.setup-box p{font-size:13px;line-height:1.65;color:var(--text2);margin-top:8px;max-width:380px}
+#key-input{width:380px;height:36px;padding:0 13px;background:var(--surface);
+  border:1px solid var(--outer);border-radius:8px;font-size:12.5px;color:var(--text);
+  margin-top:22px;-webkit-user-select:text;user-select:text;transition:border-color .14s,box-shadow .14s}
+#key-input::placeholder{color:var(--muted)}
+#key-input.bad{border-color:var(--rec);box-shadow:0 0 0 3px rgba(208,69,62,.12)}
+#key-err{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--rec-text);
+  height:18px;margin-top:8px}
+.setup-link{font-size:11.5px;color:var(--muted);margin-top:4px}
+.setup-link a{color:var(--accent-text);cursor:pointer;text-decoration:none}
+.setup-link a:hover{text-decoration:underline}
+.setup-actions{display:flex;gap:10px;margin-top:24px}
+
+/* ===== buttons ===== */
+.btn-primary{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 17px;
+  background:var(--accent);border-radius:8px;font-size:12.5px;font-weight:600;color:#fff;
+  box-shadow:0 1px 2px rgba(46,42,36,.15);transition:background .14s ease,transform .1s}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:active{transform:scale(.97)}
+.btn-primary:disabled{opacity:.45;cursor:default}
+.btn-ghost{height:34px;display:inline-flex;align-items:center;padding:0 15px;border-radius:8px;
+  font-size:12.5px;font-weight:600;color:var(--text2);transition:background .14s,color .14s}
+.btn-ghost:hover{background:var(--sidebar);color:var(--text)}
+.btn-2nd{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 13px;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;
+  font-size:12.5px;font-weight:600;color:var(--text);transition:background .14s}
+.btn-2nd:hover{background:var(--field)}
+
+/* ===== shell ===== */
+#main{flex-direction:row}
+#side{width:210px;flex:none;background:var(--sidebar);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:16px 12px 14px}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 6px}
+.brand img{width:28px;height:28px}
+.brand .n{font-family:Georgia,serif;font-size:16px;color:var(--text)}
+.brand .s{font-size:10px;color:var(--muted);letter-spacing:.3px}
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:24px}
+.nav-item{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:8px;
+  font-size:13px;font-weight:600;color:var(--text2);width:100%;text-align:left;
+  transition:background .14s ease,color .14s ease}
+.nav-item:hover{background:rgba(255,255,255,.6);color:var(--text)}
+.nav-item.on{background:var(--surface);box-shadow:var(--sh-chip);color:var(--text)}
+.nav-item svg{stroke:var(--muted)}
+.nav-item.on svg{stroke:var(--accent)}
+.profile{display:flex;align-items:center;gap:9px;border-top:1px solid var(--border);
+  margin-top:12px;padding:12px 6px 0}
+.profile .av{width:26px;height:26px;border-radius:999px;background:var(--accent-soft);
+  display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;
+  color:var(--accent-text)}
+.profile .pn{font-size:12px;font-weight:600}
+.profile .ps{font-size:10px;color:var(--muted)}
+#content{flex:1;display:flex;flex-direction:column;min-width:0}
+.page{flex:1;display:none;flex-direction:column;padding:20px 26px 22px;min-height:0;overflow:hidden}
+.page.on{display:flex}
+.page-date{font-size:12px;color:var(--muted)}
+.page-title{font-family:Georgia,serif;font-size:29px;margin-top:3px}
+.section-label{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted)}
+
+/* ===== dictation ===== */
+#dict-cols{flex:1;display:flex;gap:22px;min-height:0;margin-top:0}
+#dict-left{flex:1;min-width:0;display:flex;flex-direction:column}
+.status-card{margin-top:16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--sh-card);flex:none}
+.status-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px}
+.spill{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;
+  border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent;
+  transition:background .2s,border-color .2s,color .2s}
+.spill.idle{background:var(--tint);border-color:var(--outer);color:var(--text2)}
+.spill.idle .dot{background:var(--faint)}
+.spill.recording{background:var(--rec-tint);border-color:var(--rec-tint-b);color:var(--rec-text)}
+.spill.recording .dot{background:var(--rec);animation:yfPulse 1.5s ease-in-out infinite}
+.spill.transcribing{background:var(--warn-tint);border-color:var(--warn-tint-b);color:var(--warn-text)}
+.spill.cleaning{background:var(--accent-tint);border-color:var(--accent-tint-b);color:var(--accent-text)}
+.spill.error{background:var(--rec-tint);border-color:var(--rec-tint-b);color:var(--rec-text)}
+.spill .dot{width:8px;height:8px;border-radius:999px}
+.spill .spin{width:12px;height:12px;border-radius:999px;border:2px solid rgba(143,101,16,.25);
+  border-top-color:var(--warn);animation:yfSpin .8s linear infinite}
+.spill .timer{font-variant-numeric:tabular-nums;color:var(--text)}
+#meter{display:flex;align-items:center;gap:2.5px;height:22px}
+#meter i{width:2.5px;border-radius:2px;background:var(--meter-idle);height:8px;
+  transition:background .3s ease}
+#meter.live i{background:var(--rec)}
+.status-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  border-top:1px solid var(--divider);padding:9px 14px}
+.seg{display:flex;background:var(--tint);border:1px solid var(--border);border-radius:8px;
+  padding:2px;gap:2px}
+.seg button{height:24px;padding:0 11px;border-radius:6px;font-size:12px;font-weight:600;
+  color:var(--text2);transition:background .14s,color .14s,box-shadow .14s;white-space:nowrap}
+.seg button:hover{color:var(--text)}
+.seg button.on{background:var(--surface);box-shadow:var(--sh-chip);color:var(--text)}
+.flow-ctl{display:flex;align-items:center;gap:9px}
+.flow-ctl .star{font-size:12px;font-weight:600;color:var(--accent-text)}
+.flow-ctl .fl{font-size:12.5px;font-weight:600}
+.flow-ctl .fs{font-size:10.5px;color:var(--muted)}
+.switch{width:36px;height:20px;border-radius:999px;background:var(--border-strong);
+  position:relative;cursor:pointer;transition:background .18s ease;flex:none}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;
+  border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(46,42,36,.25);
+  transition:left .16s cubic-bezier(.34,1.3,.64,1)}
+.switch.on{background:var(--accent)}
+.switch.on::after{left:18px}
+.tools-row{margin-top:16px;display:flex;align-items:center;gap:10px;flex:none}
+.search-wrap{flex:1;height:32px;display:flex;align-items:center;gap:8px;padding:0 11px;
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  transition:border-color .14s,box-shadow .14s}
+.search-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,85,232,.14)}
+.search-wrap input{flex:1;border:none;background:none;font-size:12.5px;color:var(--text);
+  -webkit-user-select:text;user-select:text}
+.search-wrap input::placeholder{color:var(--muted)}
+kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radius:5px;
+  background:var(--surface);border:1px solid var(--outer);font-size:10.5px;font-weight:600;
+  color:var(--text2);font-family:inherit}
+.hints{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap}
+#feed{margin-top:14px;flex:1;min-height:0;overflow-y:auto;padding-right:2px}
+.day-label{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted);
+  padding:14px 14px 7px}
+.day-label:first-child{padding-top:0}
+.row{display:flex;gap:12px;padding:11px 14px;border-radius:10px;align-items:flex-start;
+  position:relative;transition:background .14s ease,box-shadow .14s ease;
+  animation:rowIn .25s ease both}
+@keyframes rowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.row:hover,.row.menu-open{background:var(--surface);box-shadow:0 1px 3px rgba(46,42,36,.07)}
+.row .t{flex:none;width:38px;font-size:11.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums;padding-top:2px}
+.row .txt{flex:1;font-size:13.5px;line-height:1.6;-webkit-user-select:text;user-select:text}
+.row .txt.ar{font-size:15px;line-height:1.7;direction:rtl;text-align:right}
+.row .acts{flex:none;display:flex;align-items:center;gap:6px}
+.badge{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;
+  border-radius:999px;background:var(--accent-tint);color:var(--accent-text);
+  font-size:10.5px;font-weight:600;margin-top:2px}
+.badge i{font-style:normal;font-size:8px}
+.row .hov{display:none;align-items:center;gap:6px}
+.row:hover .hov,.row.menu-open .hov{display:flex}
+.copy-btn{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
+  border-radius:6px;background:var(--tint);border:1px solid var(--outer);color:var(--text2);
+  font-size:11px;font-weight:600;transition:background .14s,color .14s}
+.copy-btn:hover{background:#EDE6D6;color:var(--text)}
+.copy-btn.done{background:var(--ok-tint);border-color:var(--ok-tint-b);color:var(--ok-text)}
+.dots-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+  border-radius:6px;color:var(--muted);transition:background .14s,color .14s}
+.dots-btn:hover,.row.menu-open .dots-btn{background:#EDE6D6;color:var(--text)}
+.menu{position:absolute;top:42px;right:10px;z-index:20;width:198px;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-pop);padding:5px;
+  display:flex;flex-direction:column;animation:menuIn .16s ease both}
+@keyframes menuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.menu button{height:32px;display:flex;align-items:center;gap:9px;padding:0 10px;
+  border-radius:6px;font-size:12.5px;color:var(--text);text-align:left;transition:background .12s}
+.menu button:hover{background:var(--tint)}
+.menu button:disabled{opacity:.4;cursor:default}
+.menu button:disabled:hover{background:none}
+.menu .sep{height:1px;background:var(--divider);margin:5px 6px}
+.menu .danger{font-weight:600;color:var(--rec-text)}
+.menu .danger:hover{background:var(--rec-tint)}
+#empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;text-align:center;padding:0 60px}
+#empty.on{display:flex}
+#empty .glyph{display:flex;align-items:flex-end;gap:4px;height:36px}
+#empty .glyph i{width:5px;border-radius:3px;background:var(--border-strong);
+  animation:emptyWave 2.4s ease-in-out infinite}
+#empty .glyph i:nth-child(1){height:12px}
+#empty .glyph i:nth-child(2){height:22px;background:#C6B5F3;animation-delay:.15s}
+#empty .glyph i:nth-child(3){height:34px;background:var(--accent);animation-delay:.3s}
+#empty .glyph i:nth-child(4){height:22px;background:#C6B5F3;animation-delay:.45s}
+#empty .glyph i:nth-child(5){height:12px;animation-delay:.6s}
+@keyframes emptyWave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.55)}}
+#empty h2{font-family:Georgia,serif;font-weight:400;font-size:22px}
+#empty p{font-size:13px;line-height:1.65;color:var(--text2);max-width:340px}
+#empty .apps{font-size:11.5px;color:var(--muted)}
+#empty .apps b{color:var(--text2);font-weight:600}
+#dict-rail{width:258px;flex:none;display:flex;flex-direction:column;gap:14px;padding-top:56px}
+.rail-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column}
+.rail-stat{display:flex;flex-direction:column;gap:2px;padding:12px 0;
+  border-bottom:1px solid var(--divider)}
+.rail-stat:last-child{border-bottom:none;padding-bottom:2px}
+.rail-stat .v{font-family:Georgia,serif;font-size:27px;font-variant-numeric:tabular-nums}
+.rail-stat .l{font-size:11.5px;color:var(--text2)}
+.tip-card{background:var(--tint);border:1px solid #E5DCCA;border-radius:12px;
+  padding:13px 15px;font-size:11.5px;line-height:1.8;color:var(--text2)}
+
+/* ===== insights ===== */
+#page-insights{overflow-y:auto}
+.ins-grid{display:flex;gap:14px;margin-top:18px;flex:none}
+.ins-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column;gap:3px;flex:1}
+.ins-card .k{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted)}
+.ins-card .v{font-family:Georgia,serif;font-size:34px;font-variant-numeric:tabular-nums}
+.ins-card .v small{font-size:15px;color:var(--text2);font-family:Georgia,serif}
+.ins-card .s{font-size:11px;color:var(--text2)}
+.mix-bar{display:flex;height:14px;border-radius:999px;overflow:hidden}
+.mix-legend{display:flex;gap:20px;font-size:11.5px;color:var(--text2)}
+.mix-legend .sw{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:6px}
+.heat-grid{display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;
+  grid-auto-columns:10px;gap:4px}
+.heat-grid i{width:10px;height:10px;border-radius:3px}
+.heat-legend{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted)}
+.heat-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+/* ===== dictionary ===== */
+#page-dictionary{overflow-y:auto}
+.dic-wrap{max-width:734px;display:flex;flex-direction:column}
+.dic-hero{margin-top:18px;background:var(--accent-tint);border:1px solid var(--accent-tint-b);
+  border-radius:12px;padding:18px 20px;display:flex;align-items:center;
+  justify-content:space-between;gap:20px}
+.dic-hero .ht{font-family:Georgia,serif;font-size:18px}
+.dic-hero .hs{font-size:12.5px;line-height:1.6;color:#5A5346;max-width:420px;margin-top:4px}
+.dic-list{margin-top:14px;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--sh-card);display:flex;flex-direction:column;overflow:hidden}
+.dic-row{display:flex;align-items:center;gap:14px;min-height:50px;padding:6px 16px;
+  border-bottom:1px solid var(--divider);transition:background .12s}
+.dic-row:last-child{border-bottom:none}
+.dic-row:hover{background:var(--field)}
+.dic-row .w{flex:1;font-size:13px;color:var(--text2);-webkit-user-select:text;user-select:text}
+.dic-row .r{flex:1;font-size:13px;font-weight:600;-webkit-user-select:text;user-select:text}
+.dic-row.ar .w,.dic-row.ar .r{font-size:14px;text-align:right;direction:rtl}
+.dic-row .acts{display:none;gap:4px}
+.dic-row:hover .acts{display:flex}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:6px;color:var(--text2);transition:background .12s,color .12s}
+.icon-btn:hover{background:var(--tint);color:var(--text)}
+.icon-btn.danger{color:var(--rec-text)}
+.icon-btn.danger:hover{background:var(--rec-tint)}
+.dic-edit{display:flex;align-items:center;gap:10px;padding:9px 16px;
+  border-bottom:1px solid var(--divider);background:var(--field)}
+.dic-edit input{flex:1;height:30px;padding:0 11px;background:var(--surface);
+  border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text);
+  -webkit-user-select:text;user-select:text;transition:border-color .14s,box-shadow .14s}
+.dic-edit input::placeholder{color:var(--muted)}
+
+/* ===== settings ===== */
+#page-settings{overflow-y:auto}
+.set-wrap{max-width:700px;display:flex;flex-direction:column}
+.set-card{margin-top:7px;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--sh-card);padding:0 16px}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:50px;padding:9px 0}
+.set-row+.set-row{border-top:1px solid var(--divider)}
+.set-row .sl{font-size:13px;font-weight:600}
+.set-row .ss{font-size:11.5px;color:var(--muted);margin-top:2px}
+select{height:30px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--outer);
+  border-radius:8px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;
+  -webkit-appearance:none;appearance:none;max-width:280px;text-overflow:ellipsis;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239A9285' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+  transition:background .14s,border-color .14s}
+select:hover{background-color:var(--tint)}
+input[type=range]{-webkit-appearance:none;width:160px;height:4px;border-radius:999px;
+  background:linear-gradient(to right,var(--accent) var(--val,40%),var(--border) var(--val,40%));
+  cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+  border-radius:999px;background:#fff;border:1px solid var(--border-strong);
+  box-shadow:0 1px 2px rgba(46,42,36,.2);transition:transform .12s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
+.vol-val{font-size:11.5px;color:var(--text2);width:34px;text-align:right;
+  font-variant-numeric:tabular-nums}
+.set-note{margin-top:auto;padding-top:18px;font-size:10.5px;color:var(--faint);text-align:center}
+</style>
+</head>
+<body>
+
+<div id="setup" class="view">
+  <div class="setup-box">
+    <img id="setup-logo" alt="">
+    <h1>Welcome to Yalla Flow</h1>
+    <p>Dictate in Arabic, English or both — anywhere on your PC. Paste your Cohere API key to begin; it never leaves this device.</p>
+    <input id="key-input" placeholder="Paste your API key…" spellcheck="false">
+    <div id="key-err"></div>
+    <div class="setup-link">Get a free key at <a onclick="api('open_link','https://dashboard.cohere.com/api-keys')">dashboard.cohere.com/api-keys</a></div>
+    <div class="setup-actions">
+      <button class="btn-ghost" onclick="api('quit')">Quit</button>
+      <button class="btn-primary" id="key-save" onclick="saveKey()">Save &amp; start</button>
+    </div>
+  </div>
+</div>
+
+<div id="main" class="view">
+  <div id="side">
+    <div class="brand">
+      <img id="side-logo" alt="">
+      <div><div class="n">Yalla Flow</div><div class="s">by Dialverse</div></div>
+    </div>
+    <div class="nav">
+      <button class="nav-item on" id="nav-dictation" onclick="go('dictation')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg>Dictation</button>
+      <button class="nav-item" id="nav-insights" onclick="go('insights')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="19" y1="20" x2="19" y2="14"/></svg>Insights</button>
+      <button class="nav-item" id="nav-dictionary" onclick="go('dictionary')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Dictionary</button>
+    </div>
+    <span style="flex:1"></span>
+    <button class="nav-item" id="nav-settings" onclick="go('settings')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><line x1="6" y1="20" x2="6" y2="13"/><line x1="6" y1="9" x2="6" y2="4"/><line x1="12" y1="20" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="16"/><line x1="18" y1="12" x2="18" y2="4"/><line x1="3.5" y1="13" x2="8.5" y2="13"/><line x1="9.5" y1="8" x2="14.5" y2="8"/><line x1="15.5" y1="16" x2="20.5" y2="16"/></svg>Settings</button>
+    <div class="profile">
+      <span class="av" id="prof-av">Y</span>
+      <div><div class="pn" id="prof-name">You</div><div class="ps">Dialverse</div></div>
+    </div>
+  </div>
+
+  <div id="content">
+    <!-- DICTATION -->
+    <div class="page on" id="page-dictation">
+      <div class="page-date" id="today-date"></div>
+      <div class="page-title" id="greeting">Welcome back</div>
+      <div id="dict-cols">
+        <div id="dict-left">
+          <div class="status-card">
+            <div class="status-top">
+              <span class="spill idle" id="spill"><span class="dot"></span><span id="spill-text">Idle — press F9 to start</span></span>
+              <span id="meter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
+            <div class="status-bottom">
+              <div class="seg" id="seg-lang">
+                <button data-v="ar" class="on">عربي + English</button>
+                <button data-v="en">English only</button>
+              </div>
+              <div class="flow-ctl">
+                <span class="star">✦</span>
+                <div>
+                  <div class="fl">Flow mode</div>
+                  <div class="fs" id="flow-sub">tidies filler &amp; punctuation</div>
+                </div>
+                <div class="switch" id="flow-switch" role="switch" tabindex="0"
+                     onclick="toggleFlow()"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFlow()}"></div>
+              </div>
+            </div>
+          </div>
+          <div class="tools-row">
+            <div class="search-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9A9285" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <input id="search" placeholder="Search history…" spellcheck="false">
+            </div>
+            <span class="hints" id="hints"></span>
+            <button class="btn-2nd" style="height:32px" onclick="exportHistory()">Export</button>
+          </div>
+          <div id="empty">
+            <span class="glyph"><i></i><i></i><i></i><i></i><i></i></span>
+            <h2>Press <span id="empty-key">F9</span> anywhere to dictate</h2>
+            <p>Speak Arabic, English, or both at once. Your words paste right where your cursor is — and a copy lands here.</p>
+            <div class="apps">works in <b>Word · Outlook · WhatsApp · anywhere</b></div>
+          </div>
+          <div id="feed"></div>
+        </div>
+        <div id="dict-rail">
+          <div class="rail-card">
+            <div class="section-label">YOUR STATS</div>
+            <div class="rail-stat"><span class="v" id="rs-words">—</span><span class="l">total words dictated</span></div>
+            <div class="rail-stat"><span class="v" id="rs-wpm">—</span><span class="l">average speed</span></div>
+            <div class="rail-stat"><span class="v" style="color:var(--accent-text)" id="rs-streak">—</span><span class="l">day streak — keep it going</span></div>
+          </div>
+          <div class="tip-card">Try saying: <span style="color:var(--text)">"اكتب ايميل لأحمد عن الاجتماع bukra at ten"</span> — mixed sentences are fine.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INSIGHTS -->
+    <div class="page" id="page-insights">
+      <div class="page-date" id="ins-since"></div>
+      <div class="page-title">Insights</div>
+      <div class="ins-grid">
+        <div class="ins-card" style="flex:1.3;flex-direction:row;align-items:center;justify-content:space-between">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span class="k">AVERAGE SPEED</span>
+            <span class="v" id="ins-wpm">—</span>
+            <span class="s">~3× faster than typing</span>
+          </div>
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="#F0EADC" stroke-width="7"/>
+            <circle id="ins-gauge" cx="32" cy="32" r="26" fill="none" stroke="#6C55E8" stroke-width="7"
+                    stroke-linecap="round" stroke-dasharray="0 164" transform="rotate(-90 32 32)"/>
+            <text id="ins-gauge-t" x="32" y="37" text-anchor="middle" font-size="13"
+                  font-family="Georgia,serif" fill="#5240C9"></text>
+          </svg>
+        </div>
+        <div class="ins-card"><span class="k">TOTAL WORDS</span><span class="v" id="ins-words">—</span><span class="s" id="ins-wps"></span></div>
+        <div class="ins-card"><span class="k"><span style="color:var(--accent-text)">✦</span> FLOW FIXES</span><span class="v" id="ins-fixes">—</span><span class="s">filler &amp; punctuation cleanups</span></div>
+        <div class="ins-card"><span class="k">DICTATIONS</span><span class="v" id="ins-count">—</span><span class="s" id="ins-days"></span></div>
+      </div>
+      <div class="ins-card" style="margin-top:14px;flex:none;gap:10px">
+        <span class="k">LANGUAGE MIX</span>
+        <div class="mix-bar" id="mix-bar"></div>
+        <div class="mix-legend" id="mix-legend"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:14px;flex:none">
+        <div class="ins-card" style="gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span class="k">DAILY ACTIVITY · LAST 6 MONTHS</span>
+            <span class="heat-legend">less <i style="background:#EFE8DB"></i><i style="background:#E4DBF9"></i><i style="background:#C6B5F3"></i><i style="background:#9C82EC"></i><i style="background:#6C55E8"></i> more</span>
+          </div>
+          <div style="display:flex;gap:10px">
+            <div style="display:flex;flex-direction:column;justify-content:space-between;padding:20px 0 2px;font-size:9.5px;color:var(--faint)">
+              <span>Mon</span><span>Wed</span><span>Fri</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;min-width:0;overflow-x:auto">
+              <div id="heat-months" style="display:flex;font-size:9.5px;color:var(--faint)"></div>
+              <div class="heat-grid" id="heat-grid"></div>
+            </div>
+          </div>
+        </div>
+        <div style="width:225px;flex:none;display:flex;flex-direction:column;gap:14px">
+          <div class="ins-card" style="justify-content:center">
+            <span style="display:flex;align-items:baseline;gap:6px">
+              <span class="v" style="font-size:30px;color:var(--accent-text)" id="ins-streak">—</span>
+              <svg width="13" height="15" viewBox="0 0 24 24" fill="#6C55E8" style="align-self:center"><path d="M12 2c1.2 3.6-4 6-4 10.5a4.4 4.4 0 0 0 8.8 0c0-1.9-.9-3.3-1.9-4.4-.1 1.6-2.1 2.2-1.6.2.4-1.7.3-4.2-1.3-6.3z"/></svg>
+            </span>
+            <span class="s">current streak, days</span>
+          </div>
+          <div class="ins-card" style="justify-content:center">
+            <span class="v" style="font-size:30px" id="ins-longest">—</span>
+            <span class="s">longest streak, days</span>
+          </div>
+          <div class="tip-card" style="font-size:11px;line-height:1.7">From your data only: timestamp, words, duration, language, Flow flag.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DICTIONARY -->
+    <div class="page" id="page-dictionary">
+      <div class="dic-wrap">
+        <div class="page-date" id="dic-count">0 entries</div>
+        <div class="page-title">Dictionary</div>
+        <div class="dic-hero">
+          <div>
+            <div class="ht">Yalla Flow spells the way you do</div>
+            <div class="hs">Add client names, company jargon and Arabic spellings once — they'll come out right every time, in either language.</div>
+          </div>
+          <button class="btn-primary" onclick="dicAdd()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add entry</button>
+        </div>
+        <div class="tools-row" style="margin-top:14px">
+          <div class="search-wrap">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9A9285" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+            <input id="dic-search" placeholder="Search entries…" spellcheck="false">
+          </div>
+          <span style="font-size:11px;color:var(--muted)">applies in both languages</span>
+        </div>
+        <div class="dic-list" id="dic-list"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="set-wrap">
+        <div class="page-date">Language &amp; Flow mode live on the Dictation page</div>
+        <div class="page-title">Settings</div>
+        <div class="section-label" style="margin-top:18px">RECORDING</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div><div class="sl">Mode</div><div class="ss" id="mode-sub">how F9 behaves</div></div>
+            <div class="seg" id="seg-mode">
+              <button data-v="toggle" class="on">Press to start / stop</button>
+              <button data-v="hold">Hold to talk</button>
+            </div>
+          </div>
+          <div class="set-row"><span class="sl">Record key</span><select id="sel-reckey"></select></div>
+          <div class="set-row"><span class="sl">Language key</span><select id="sel-langkey"></select></div>
+        </div>
+        <div class="section-label" style="margin-top:16px">SOUND</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div><div class="sl">Chime</div><div class="ss">soft tick on start &amp; stop</div></div>
+            <div class="switch" id="chime-switch" role="switch" tabindex="0" onclick="toggleChime()"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleChime()}"></div>
+          </div>
+          <div class="set-row">
+            <span class="sl">Volume</span>
+            <span style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="vol" min="0" max="100" value="40">
+              <span class="vol-val" id="vol-val">40%</span>
+            </span>
+          </div>
+        </div>
+        <div class="section-label" style="margin-top:16px">MICROPHONE</div>
+        <div class="set-card">
+          <div class="set-row"><span class="sl">Input device</span><select id="sel-mic"></select></div>
+        </div>
+        <div class="section-label" style="margin-top:16px">SYSTEM</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div><div class="sl">Start with Windows</div><div class="ss">launch quietly in the tray when you log in</div></div>
+            <div class="switch" id="autostart-switch" role="switch" tabindex="0" onclick="toggleAutostart()"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAutostart()}"></div>
+          </div>
+        </div>
+        <div class="set-note">Yalla Flow 2.0 · by Dialverse · key stored on this device only</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const REC_KEYS = ['f2','f4','f6','f8','f9','pause'];
+const LANG_KEYS = ['f7','f10','f11','f12'];
+const AR_RE = /[؀-ۿ]/;
+let S = {}, HISTORY = [], state = 'idle', startedAt = 0;
+let level = 0, dispLevel = 0, openMenuTs = null;
+const MULT = [0.5,0.8,1.0,0.65,0.9,0.55,0.75];
+
+function api(method, ...args){
+  if (window.pywebview && window.pywebview.api && window.pywebview.api[method])
+    return window.pywebview.api[method](...args);
+  return Promise.resolve(null);
+}
+
+/* ---------- 60fps meter + timer ---------- */
+const meterBars = Array.from($('meter').children);
+function raf(){
+  const target = state === 'recording' ? Math.min(1, level * 9) : 0;
+  dispLevel += (target - dispLevel) * (target > dispLevel ? 0.35 : 0.08);
+  const t = performance.now() / 1000;
+  meterBars.forEach((b, i) => {
+    let h;
+    if (state === 'recording'){
+      const wig = 0.72 + 0.28 * Math.sin(t * 9 + i * 1.7);
+      h = 5 + Math.min(15, dispLevel * 120 * MULT[i] * wig);
+    } else h = [6,10,14,8,12,7,10][i];
+    b.style.height = h + 'px';
+  });
+  if (state === 'recording' && startedAt){
+    const secs = Math.max(0, Math.floor(Date.now()/1000 - startedAt));
+    const stamp = Math.floor(secs/60) + ':' + String(secs%60).padStart(2,'0');
+    const el = $('spill-timer');
+    if (el && el.textContent !== stamp) el.textContent = stamp;
+  }
+  requestAnimationFrame(raf);
+}
+requestAnimationFrame(raf);
+
+/* ---------- pushed from Python ---------- */
+window.app = {
+  setState(st, detail, started){
+    state = st; startedAt = started || 0;
+    const p = $('spill');
+    p.className = 'spill ' + st;
+    const rk = (S.record_key || 'f9').toUpperCase();
+    let inner = '';
+    if (st === 'idle') inner = `<span class="dot"></span><span>Idle — press ${rk} to start</span>`;
+    else if (st === 'recording') inner = `<span class="dot"></span><span>Recording</span><span class="timer" id="spill-timer">0:00</span>`;
+    else if (st === 'transcribing') inner = `<span class="spin"></span><span>Transcribing…</span>`;
+    else if (st === 'cleaning') inner = `<span style="font-size:11px">✦</span><span>Cleaning…</span>`;
+    else if (st === 'error') inner = `<span style="font-size:10px">✕</span><span>${esc(detail || 'Error')}</span>`;
+    p.innerHTML = inner;
+    if (st === 'idle' && detail) p.innerHTML = `<span class="dot"></span><span>${esc(detail)}</span>`;
+    $('meter').classList.toggle('live', st === 'recording');
+  },
+  setLevel(v){ level = v; },
+  addEntry(e){ HISTORY.push(e); renderFeed(); renderRail(); },
+  updateEntry(e){
+    const i = HISTORY.findIndex(x => x.ts === e.ts);
+    if (i >= 0) HISTORY[i] = e;
+    renderFeed(); renderRail();
+  },
+  setLanguage(lang){ segSet('seg-lang', lang); }
+};
+function esc(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+/* ---------- history feed ---------- */
+function dayLabel(ts){
+  const d = new Date(ts * 1000), now = new Date();
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return 'TODAY';
+  if (diff === 1) return 'YESTERDAY';
+  return d.toLocaleDateString('en-US', {month:'long', day:'numeric'}).toUpperCase();
+}
+function fmtTime(ts){
+  const d = new Date(ts * 1000);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function renderFeed(){
+  const q = $('search').value.trim().toLowerCase();
+  const entries = HISTORY.filter(e => !q || e.text.toLowerCase().includes(q)).slice(-80).reverse();
+  $('empty').classList.toggle('on', entries.length === 0 && !q);
+  $('feed').style.display = (entries.length === 0 && !q) ? 'none' : 'block';
+  const feed = $('feed');
+  feed.innerHTML = '';
+  let lastDay = '';
+  for (const e of entries){
+    const dl = dayLabel(e.ts);
+    if (dl !== lastDay){
+      lastDay = dl;
+      const lab = document.createElement('div');
+      lab.className = 'day-label'; lab.textContent = dl;
+      feed.appendChild(lab);
+    }
+    feed.appendChild(buildRow(e));
+  }
+}
+function buildRow(e){
+  const row = document.createElement('div');
+  row.className = 'row';
+  const isAr = e.lang === 'ar' || AR_RE.test(e.text);
+  row.innerHTML = `<span class="t">${fmtTime(e.ts)}</span>` +
+    `<div class="txt${isAr ? ' ar' : ''}">${esc(e.text)}</div>`;
+  const acts = document.createElement('span');
+  acts.className = 'acts';
+  if (e.cleaned) acts.innerHTML = '<span class="badge"><i>✦</i>flow</span>';
+  const hov = document.createElement('span');
+  hov.className = 'hov';
+  const copy = document.createElement('button');
+  copy.className = 'copy-btn';
+  copy.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy';
+  copy.onclick = ev => { ev.stopPropagation();
+    api('copy_text', e.text);
+    copy.textContent = '✓ Copied'; copy.classList.add('done');
+    setTimeout(() => { copy.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy'; copy.classList.remove('done'); }, 1300);
+  };
+  const dots = document.createElement('button');
+  dots.className = 'dots-btn';
+  dots.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
+  dots.onclick = ev => { ev.stopPropagation(); toggleMenu(row, e); };
+  hov.appendChild(copy); hov.appendChild(dots);
+  acts.appendChild(hov);
+  row.appendChild(acts);
+  return row;
+}
+function toggleMenu(row, e){
+  const was = row.classList.contains('menu-open');
+  closeMenus();
+  if (was) return;
+  row.classList.add('menu-open');
+  openMenuTs = e.ts;
+  const m = document.createElement('div');
+  m.className = 'menu';
+  const item = (label, svg, enabled, fn, danger) => {
+    const b = document.createElement('button');
+    if (danger) b.className = 'danger';
+    b.innerHTML = svg + label;
+    b.disabled = !enabled;
+    if (enabled) b.onclick = ev => { ev.stopPropagation(); closeMenus(); fn(); };
+    return b;
+  };
+  const I = {
+    undo:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E675C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>',
+    retry:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E675C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>',
+    audio:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E675C" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="10" x2="4" y2="14"/><line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="16" y1="8" x2="16" y2="16"/><line x1="20" y1="11" x2="20" y2="13"/></svg>',
+    trash:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#B23730" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>'
+  };
+  m.appendChild(item('Undo AI edit', I.undo, !!(e.cleaned && e.raw),
+    () => api('undo_ai', e.ts).then(r => { if (r) window.app.updateEntry(r); })));
+  m.appendChild(item('Retry transcript', I.retry, !!e.audio,
+    () => api('retry_entry', e.ts)));
+  m.appendChild(item('Extract audio', I.audio, !!e.audio,
+    () => api('extract_audio', e.ts)));
+  const sep = document.createElement('span'); sep.className = 'sep';
+  m.appendChild(sep);
+  m.appendChild(item('Delete transcript', I.trash, true,
+    () => api('delete_entry', e.ts).then(() => {
+      HISTORY = HISTORY.filter(x => x.ts !== e.ts);
+      renderFeed(); renderRail();
+    }), true));
+  row.appendChild(m);
+}
+function closeMenus(){
+  document.querySelectorAll('.menu').forEach(m => m.remove());
+  document.querySelectorAll('.row.menu-open').forEach(r => r.classList.remove('menu-open'));
+  openMenuTs = null;
+}
+document.addEventListener('click', closeMenus);
+$('search').addEventListener('input', renderFeed);
+function exportHistory(){ api('export_history'); }
+
+/* ---------- stats rail ---------- */
+function streaks(){
+  const days = new Set(HISTORY.map(e => new Date(e.ts * 1000).toDateString()));
+  let cur = 0;
+  for (let i = 0; ; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    if (days.has(d.toDateString())) cur++;
+    else if (i === 0) continue;  // today empty doesn't break yesterday's streak
+    else break;
+  }
+  let longest = 0;
+  const sorted = [...days].map(s => new Date(s).getTime()).sort((a,b) => a-b);
+  let run = 0, prev = null;
+  for (const t of sorted){
+    run = (prev !== null && t - prev === 86400000) ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    prev = t;
+  }
+  return {cur, longest};
+}
+function renderRail(){
+  const words = HISTORY.reduce((a,e) => a + e.words, 0);
+  const secs = HISTORY.reduce((a,e) => a + (e.secs || 0), 0);
+  const wpm = secs > 2 ? Math.round(words / (secs / 60)) : 0;
+  $('rs-words').textContent = words ? words.toLocaleString() : '—';
+  $('rs-wpm').innerHTML = wpm ? `${wpm} <span style="font-size:14px;color:var(--text2)">WPM</span>` : '—';
+  $('rs-streak').textContent = HISTORY.length ? streaks().cur : '—';
+}
+
+/* ---------- insights ---------- */
+function renderInsights(){
+  const n = HISTORY.length;
+  const words = HISTORY.reduce((a,e) => a + e.words, 0);
+  const secs = HISTORY.reduce((a,e) => a + (e.secs || 0), 0);
+  const wpm = secs > 2 ? Math.round(words / (secs / 60)) : 0;
+  const fixes = HISTORY.filter(e => e.cleaned).length;
+  const days = new Set(HISTORY.map(e => new Date(e.ts * 1000).toDateString()));
+  if (n){
+    const first = new Date(HISTORY[0].ts * 1000);
+    $('ins-since').textContent = 'Since ' + first.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  } else $('ins-since').textContent = 'Your dictation, in numbers';
+  $('ins-wpm').innerHTML = wpm ? `${wpm}<small> WPM</small>` : '—';
+  const pct = Math.min(1, wpm / 200);
+  $('ins-gauge').setAttribute('stroke-dasharray', `${Math.round(pct * 163)} 164`);
+  $('ins-gauge-t').textContent = wpm ? Math.round(pct * 100) + '%' : '';
+  $('ins-words').textContent = words ? words.toLocaleString() : '—';
+  $('ins-wps').textContent = secs > 2 ? `≈ ${(words/secs).toFixed(1)} words per dictated second` : '';
+  $('ins-fixes').textContent = fixes ? fixes.toLocaleString() : '—';
+  $('ins-count').textContent = n ? n.toLocaleString() : '—';
+  $('ins-days').textContent = days.size ? `across ${days.size} active day${days.size>1?'s':''}` : '';
+  const st = n ? streaks() : {cur:'—', longest:'—'};
+  $('ins-streak').textContent = st.cur;
+  $('ins-longest').textContent = st.longest;
+  // language mix
+  const arW = HISTORY.filter(e => e.lang === 'ar').reduce((a,e) => a + e.words, 0);
+  const enW = words - arW;
+  const arP = words ? Math.round(arW / words * 100) : 50;
+  $('mix-bar').innerHTML = `<span style="width:${arP}%;background:var(--accent)"></span>` +
+                           `<span style="width:${100-arP}%;background:var(--border-strong)"></span>`;
+  $('mix-legend').innerHTML =
+    `<span><span class="sw" style="background:var(--accent)"></span>عربي · ${arP}% — ${arW.toLocaleString()} words</span>` +
+    `<span><span class="sw" style="background:var(--border-strong)"></span>English · ${100-arP}% — ${enW.toLocaleString()} words</span>`;
+  renderHeatmap();
+}
+function renderHeatmap(){
+  const RAMP = ['#EFE8DB','#E4DBF9','#C6B5F3','#9C82EC','#6C55E8'];
+  const counts = {};
+  for (const e of HISTORY){
+    const k = new Date(e.ts * 1000).toDateString();
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  const today = new Date();
+  const dow = (today.getDay() + 6) % 7;             // Mon=0
+  const end = new Date(today); end.setDate(end.getDate() + (6 - dow));
+  const WEEKS = 26;
+  const start = new Date(end); start.setDate(start.getDate() - (WEEKS * 7 - 1));
+  const grid = $('heat-grid');
+  grid.innerHTML = '';
+  const months = [];
+  for (let w = 0; w < WEEKS; w++){
+    const monday = new Date(start); monday.setDate(monday.getDate() + w * 7);
+    const m = monday.toLocaleDateString('en-US', {month:'short'});
+    if (!months.length || months[months.length-1].m !== m) months.push({m, w});
+    for (let d = 0; d < 7; d++){
+      const day = new Date(start); day.setDate(day.getDate() + w * 7 + d);
+      const cell = document.createElement('i');
+      if (day > today) cell.style.background = 'transparent';
+      else {
+        const c = counts[day.toDateString()] || 0;
+        const lvl = c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4;
+        cell.style.background = RAMP[lvl];
+        cell.title = `${day.toLocaleDateString()} — ${c} dictation${c===1?'':'s'}`;
+      }
+      grid.appendChild(cell);
+    }
+  }
+  const mrow = $('heat-months');
+  mrow.innerHTML = '';
+  let prevW = 0;
+  months.forEach((mo, i) => {
+    const span = document.createElement('span');
+    span.textContent = mo.m;
+    const next = i + 1 < months.length ? months[i+1].w : WEEKS;
+    span.style.width = ((next - mo.w) * 14) + 'px';
+    mrow.appendChild(span);
+    prevW = next;
+  });
+}
+
+/* ---------- dictionary ---------- */
+function dicPairs(){
+  return (S.dictionary || '').split('\n').map(l => {
+    const m = l.includes('=') ? l.split('=') : l.includes('->') ? l.split('->') : null;
+    if (!m || m.length < 2) return null;
+    const w = m[0].trim(), r = m.slice(1).join('=').trim();
+    return w && r ? {w, r} : null;
+  }).filter(Boolean);
+}
+function dicSave(pairs){
+  S.dictionary = pairs.map(p => `${p.w} = ${p.r}`).join('\n');
+  api('set_setting', 'dictionary', S.dictionary);
+  renderDictionary();
+}
+function renderDictionary(){
+  const pairs = dicPairs();
+  const q = ($('dic-search').value || '').trim().toLowerCase();
+  const shown = pairs.filter(p => !q || p.w.toLowerCase().includes(q) || p.r.toLowerCase().includes(q));
+  $('dic-count').textContent = `${pairs.length} entr${pairs.length === 1 ? 'y' : 'ies'}`;
+  const list = $('dic-list');
+  list.innerHTML = '';
+  const arrow = flip => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B3A996" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${flip ? ' style="transform:scaleX(-1)"' : ''}><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg>`;
+  if (!shown.length){
+    const d = document.createElement('div');
+    d.style.cssText = 'padding:22px 16px;font-size:12.5px;color:var(--muted);text-align:center';
+    d.textContent = pairs.length ? 'No matches.' : 'No entries yet — add your first with "Add entry".';
+    list.appendChild(d);
+  }
+  shown.forEach(p => {
+    const idx = pairs.indexOf(p);
+    const isAr = AR_RE.test(p.w) || AR_RE.test(p.r);
+    const row = document.createElement('div');
+    row.className = 'dic-row' + (isAr ? ' ar' : '');
+    if (isAr) row.dir = 'rtl';
+    row.innerHTML = `<span class="w">${esc(p.w)}</span>${arrow(isAr)}<span class="r">${esc(p.r)}</span>`;
+    const acts = document.createElement('span');
+    acts.className = 'acts';
+    const edit = document.createElement('button');
+    edit.className = 'icon-btn';
+    edit.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5z"/></svg>';
+    edit.onclick = () => dicEdit(row, idx);
+    const del = document.createElement('button');
+    del.className = 'icon-btn danger';
+    del.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>';
+    del.onclick = () => { const ps = dicPairs(); ps.splice(idx, 1); dicSave(ps); };
+    acts.appendChild(edit); acts.appendChild(del);
+    row.appendChild(acts);
+    list.appendChild(row);
+  });
+}
+function dicEditor(w, r, onDone){
+  const ed = document.createElement('div');
+  ed.className = 'dic-edit';
+  ed.innerHTML = '';
+  const iw = document.createElement('input'); iw.placeholder = 'heard as… (e.g. dialverse)'; iw.value = w; iw.spellcheck = false;
+  const ir = document.createElement('input'); ir.placeholder = 'write as… (e.g. Dialverse)'; ir.value = r; ir.spellcheck = false;
+  const ok = document.createElement('button'); ok.className = 'btn-primary'; ok.style.height = '30px'; ok.textContent = 'Save';
+  ok.onclick = () => { if (iw.value.trim() && ir.value.trim()) onDone(iw.value.trim(), ir.value.trim()); };
+  const cancel = document.createElement('button'); cancel.className = 'btn-ghost'; cancel.style.height = '30px'; cancel.textContent = 'Cancel';
+  cancel.onclick = () => renderDictionary();
+  [iw, ir].forEach(inp => inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') ok.click(); }));
+  ed.appendChild(iw); ed.appendChild(ir); ed.appendChild(ok); ed.appendChild(cancel);
+  return ed;
+}
+function dicAdd(){
+  go('dictionary');
+  const list = $('dic-list');
+  if (list.firstChild && list.firstChild.className === 'dic-edit') return;
+  const ed = dicEditor('', '', (w, r) => { const ps = dicPairs(); ps.unshift({w, r}); dicSave(ps); });
+  list.insertBefore(ed, list.firstChild);
+  ed.querySelector('input').focus();
+}
+function dicEdit(row, idx){
+  const pairs = dicPairs();
+  const ed = dicEditor(pairs[idx].w, pairs[idx].r, (w, r) => {
+    const ps = dicPairs(); ps[idx] = {w, r}; dicSave(ps);
+  });
+  row.replaceWith(ed);
+  ed.querySelector('input').focus();
+}
+$('dic-search').addEventListener('input', renderDictionary);
+
+/* ---------- nav / controls ---------- */
+function go(page){
+  closeMenus();
+  for (const p of ['dictation','insights','dictionary','settings']){
+    $('nav-' + p).classList.toggle('on', p === page);
+    $('page-' + p).classList.toggle('on', p === page);
+  }
+  if (page === 'insights') renderInsights();
+  if (page === 'dictionary') renderDictionary();
+}
+function segSet(id, val){
+  for (const b of $(id).children) b.classList.toggle('on', b.dataset.v === val);
+}
+$('seg-lang').addEventListener('click', ev => {
+  const v = ev.target.dataset.v; if (!v) return;
+  segSet('seg-lang', v); api('set_language', v);
+});
+$('seg-mode').addEventListener('click', ev => {
+  const v = ev.target.dataset.v; if (!v) return;
+  segSet('seg-mode', v); setSetting('rec_mode', v); renderHints();
+});
+function toggleFlow(){
+  const on = !$('flow-switch').classList.contains('on');
+  $('flow-switch').classList.toggle('on', on);
+  $('flow-sub').textContent = on ? 'tidies filler & punctuation' : 'off — exactly as spoken';
+  setSetting('flow_mode', on);
+}
+function toggleChime(){
+  const on = !$('chime-switch').classList.contains('on');
+  $('chime-switch').classList.toggle('on', on);
+  setSetting('chime_on', on);
+}
+function toggleAutostart(){
+  const on = !$('autostart-switch').classList.contains('on');
+  $('autostart-switch').classList.toggle('on', on);
+  setSetting('autostart', on);
+}
+function setSetting(key, value){ S[key] = value; api('set_setting', key, value); }
+function renderHints(){
+  const rk = (S.record_key || 'f9').toUpperCase();
+  const lk = (S.lang_key || 'f10').toUpperCase();
+  $('hints').innerHTML = `<kbd>${rk}</kbd>${S.rec_mode === 'hold' ? 'hold' : 'record'}` +
+                         `<kbd style="margin-left:5px">${lk}</kbd>language`;
+  $('empty-key').textContent = rk;
+  $('mode-sub').textContent = `how ${rk} behaves`;
+}
+function fillSelect(id, values, current, cb){
+  const sel = $(id);
+  sel.innerHTML = '';
+  for (const v of values){
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v.length <= 6 ? v.toUpperCase() : v;
+    sel.appendChild(o);
+  }
+  sel.value = current;
+  sel.onchange = () => cb(sel.value);
+}
+$('vol').addEventListener('input', () => {
+  const v = parseInt($('vol').value, 10);
+  $('vol').style.setProperty('--val', v + '%');
+  $('vol-val').textContent = v + '%';
+});
+$('vol').addEventListener('change', () => setSetting('chime_volume', parseInt($('vol').value, 10)));
+
+/* ---------- setup ---------- */
+function saveKey(){
+  const key = $('key-input').value.trim();
+  if (!key){ keyError('Paste your API key first.'); return; }
+  const b = $('key-save');
+  b.disabled = true; b.textContent = 'Checking…';
+  $('key-err').textContent = ''; $('key-input').classList.remove('bad');
+  api('save_key', key).then(res => {
+    if (res && res.ok) boot(res.init);
+    else { b.disabled = false; b.textContent = 'Save & start';
+           keyError("That key didn't work — check it and try again."); }
+  });
+}
+function keyError(msg){
+  $('key-err').innerHTML = '<span style="font-size:10px">✕</span>' + esc(msg);
+  $('key-input').classList.add('bad');
+}
+$('key-input').addEventListener('keydown', ev => { if (ev.key === 'Enter') saveKey(); });
+
+/* ---------- boot ---------- */
+function boot(init){
+  S = init.settings;
+  HISTORY = init.history || [];
+  $('setup').classList.remove('active');
+  $('main').classList.add('active');
+  const name = init.user || '';
+  $('greeting').textContent = HISTORY.length ? `Welcome back${name ? ', ' + name : ''}` : `Welcome${name ? ', ' + name : ''}`;
+  $('prof-name').textContent = name || 'You';
+  $('prof-av').textContent = (name || 'Y')[0].toUpperCase();
+  $('today-date').textContent = new Date().toLocaleDateString('en-US',
+    {weekday:'long', month:'long', day:'numeric'});
+  segSet('seg-lang', S.language);
+  segSet('seg-mode', S.rec_mode);
+  $('flow-switch').classList.toggle('on', !!S.flow_mode);
+  $('flow-sub').textContent = S.flow_mode ? 'tidies filler & punctuation' : 'off — exactly as spoken';
+  $('chime-switch').classList.toggle('on', S.chime_on !== false);
+  $('autostart-switch').classList.toggle('on', !!S.autostart);
+  $('vol').value = S.chime_volume ?? 40;
+  $('vol').style.setProperty('--val', $('vol').value + '%');
+  $('vol-val').textContent = $('vol').value + '%';
+  fillSelect('sel-reckey', REC_KEYS, S.record_key, v => { setSetting('record_key', v); renderHints(); });
+  fillSelect('sel-langkey', LANG_KEYS, S.lang_key, v => { setSetting('lang_key', v); renderHints(); });
+  fillSelect('sel-mic', init.devices, S.mic_device || 'System default',
+             v => setSetting('mic_device', v === 'System default' ? '' : v));
+  renderFeed(); renderRail(); renderHints();
+  window.app.setState('idle', '');
+}
+window.addEventListener('pywebviewready', () => {
+  api('get_init').then(init => {
+    if (init.logo){
+      $('setup-logo').src = 'data:image/png;base64,' + init.logo;
+      $('side-logo').src = 'data:image/png;base64,' + init.logo;
+    }
+    if (init.key_set) boot(init);
+    else $('setup').classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
