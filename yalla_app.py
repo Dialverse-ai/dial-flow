@@ -44,7 +44,7 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.3.2"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 PILL_BG = "#14121D"
@@ -83,10 +83,24 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _speech_present(audio):
+    """Cheap voice-activity check: is there ANY 100ms window loud enough to
+    plausibly be speech? Silent accidental taps must never reach the API —
+    the model hallucinates words from amplified nothing."""
+    win = SAMPLE_RATE // 10
+    n = len(audio) // win
+    if n == 0:
+        return False
+    return any(
+        float(np.sqrt(np.mean(audio[i * win:(i + 1) * win] ** 2))) > 0.008
+        for i in range(n))
+
+
 def _enhance_audio(audio):
     """Near-zero-latency mic cleanup before transcription: high-pass out
-    sub-75Hz rumble, then normalize quiet speech up to the level the ASR
-    model expects (capped so noise isn't blown up). One FFT pass, <50ms."""
+    sub-75Hz rumble, then a GENTLE lift for quiet speech. Conservative on
+    purpose — hot gain amplifies background media/noise into hallucination
+    fuel and pushes real speech toward clipping."""
     if len(audio) < 1600:
         return audio
     spec = np.fft.rfft(audio)
@@ -94,11 +108,13 @@ def _enhance_audio(audio):
     spec[freqs < 75] = 0
     audio = np.fft.irfft(spec, n=len(audio)).astype(np.float32)
     rms = float(np.sqrt(np.mean(audio ** 2)))
-    if rms > 1e-5:
-        audio = audio * min(0.1 / rms, 8.0)  # target −20 dBFS, gain cap 18 dB
+    if 0.005 < rms < 0.06:
+        # only lift genuinely-quiet speech, mildly (max 12 dB), and never
+        # touch clips that are near-silence (nothing there to lift)
+        audio = audio * min(0.06 / rms, 4.0)
     peak = float(np.max(np.abs(audio)))
-    if peak > 0.98:
-        audio = audio * (0.98 / peak)
+    if peak > 0.90:
+        audio = audio * (0.90 / peak)
     return audio
 
 
@@ -470,6 +486,11 @@ class Engine:
                 self.on_state("idle", "Too short — ignored")
                 return
             audio = np.concatenate(chunks).flatten()[: MAX_SECONDS * SAMPLE_RATE]
+            if not _speech_present(audio):
+                # silent/accidental tap — never send it: the model invents
+                # words ("فراغ", "♫") from amplified nothing
+                self.on_state("idle", "Nothing heard — skipped")
+                return
             if self.settings.get("audio_enhance", True):
                 try:
                     audio = _enhance_audio(audio)
