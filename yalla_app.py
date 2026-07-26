@@ -44,9 +44,9 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.2.1"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
-MINI_W, MINI_H = 46, 14     # idle bubble
+MINI_W, MINI_H = 34, 10     # idle bubble — tiny, Wispr-sized
 UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
@@ -125,10 +125,13 @@ PILL_HTML = """<!DOCTYPE html><html><head><style>
 body{font-family:'Segoe UI',sans-serif;height:100vh;display:flex;align-items:center;
 justify-content:center;gap:8px;box-sizing:border-box;
 transition:opacity .22s ease,transform .22s ease}
-#mini{display:none;width:16px;height:3px;border-radius:2px;background:#8F86B8;
-opacity:.55}
+#mini{display:none}
 body.mini .dot,body.mini #t,body.mini #wave,body.mini #spin{display:none}
-body.mini #mini{display:block}
+body.mini{background:#3A3742;animation:breathe 3.4s ease-in-out infinite}
+@keyframes breathe{
+ 0%,100%{background:#3A3742}
+ 50%{background:#55506B}
+}
 .dot{width:9px;height:9px;border-radius:99px;background:#F26B5E;flex:none;
 animation:pulse 1.5s ease-in-out infinite;transition:opacity .18s ease}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.7)}}
@@ -1246,8 +1249,10 @@ class YallaFlow:
         self.main_win.events.closing += self._on_closing
         self.pill_win = webview.create_window(
             "Yalla Flow — recording", html=PILL_HTML,
-            width=150, height=38, x=sw // 2 - 75, y=sh - 118,
-            min_size=(150, 38),  # pywebview's default min is 200x100 — would inflate the pill
+            width=PILL_W, height=PILL_H, x=sw // 2 - PILL_W // 2, y=sh - 118,
+            # override pywebview's silent 200x100 default min — it must be
+            # allowed to shrink all the way down to the idle bubble
+            min_size=(MINI_W, MINI_H),
             frameless=True, on_top=True, hidden=True, resizable=False,
             focus=False, background_color="#1C1926")
         logging.info("app started")
