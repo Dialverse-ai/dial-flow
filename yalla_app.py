@@ -44,7 +44,7 @@ else:
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
-APP_VERSION = "2.2.1"
+APP_VERSION = "2.2.2"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 34, 10     # idle bubble — tiny, Wispr-sized
 UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
@@ -936,6 +936,15 @@ class YallaFlow:
             ctypes.windll.user32.SetWindowLongPtrW(
                 phwnd, GWL_EXSTYLE,
                 ex | 0x08000000 | 0x00000080)  # NOACTIVATE | TOOLWINDOW
+            self._pill_hwnd = phwnd  # cached for the native animator
+            try:
+                # dark form backing — kills the white fringe that peeks out
+                # around the web content at tiny sizes / during resizes
+                import System.Drawing  # pythonnet, already loaded by pywebview
+                self.pill_win.native.BackColor = \
+                    System.Drawing.ColorTranslator.FromHtml("#1C1926")
+            except Exception:
+                pass
             self._pill_rounded = True
         except Exception:
             if attempt < 4:
@@ -991,7 +1000,9 @@ class YallaFlow:
 
     def _animate_pill(self, expand):
         """Eased window-size animation between the idle bubble and the full
-        pill, anchored bottom-center so it grows in place."""
+        pill, anchored bottom-center so it grows in place. Drives raw
+        SetWindowPos on the cached hwnd — pywebview's resize/move marshal
+        through the UI thread and stutter, especially right after show()."""
         self._anim_token = getattr(self, "_anim_token", 0) + 1
         token = self._anim_token
         end = (PILL_W, PILL_H) if expand else (MINI_W, MINI_H)
@@ -999,22 +1010,44 @@ class YallaFlow:
         if start == end:
             return
         anchor = self._pill_anchor()
+        hwnd = getattr(self, "_pill_hwnd", None)
         if anchor is None or self.pill_win is None:
             self._pill_wh = end
             return
         self._pill_animating = True
-        steps = 9
         try:
-            for i in range(1, steps + 1):
-                if token != self._anim_token or self.quitting:
-                    return
-                t = 1 - (1 - i / steps) ** 3  # ease-out cubic
-                w = int(start[0] + (end[0] - start[0]) * t)
-                h = int(start[1] + (end[1] - start[1]) * t)
-                self.pill_win.resize(w, h)
-                self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
-                self._pill_wh = (w, h)
-                time.sleep(0.014)
+            if expand:
+                time.sleep(0.03)  # let the just-shown window settle first
+            if hwnd:
+                try:
+                    dpi = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
+                except Exception:
+                    dpi = 1.0
+                steps, dt = 16, 0.010  # ~160ms at ~100fps native moves
+                for i in range(1, steps + 1):
+                    if token != self._anim_token or self.quitting:
+                        return
+                    t = i / steps
+                    t = t * t * (3 - 2 * t)  # smoothstep ease-in-out
+                    w = round(start[0] + (end[0] - start[0]) * t)
+                    h = round(start[1] + (end[1] - start[1]) * t)
+                    pw, ph = int(w * dpi), int(h * dpi)
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd, 0, anchor[0] - pw // 2, anchor[1] - ph, pw, ph,
+                        0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
+                    self._pill_wh = (w, h)
+                    time.sleep(dt)
+            else:
+                for i in range(1, 10):
+                    if token != self._anim_token or self.quitting:
+                        return
+                    t = 1 - (1 - i / 9) ** 3
+                    w = int(start[0] + (end[0] - start[0]) * t)
+                    h = int(start[1] + (end[1] - start[1]) * t)
+                    self.pill_win.resize(w, h)
+                    self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
+                    self._pill_wh = (w, h)
+                    time.sleep(0.014)
             self._pill_wh = end
         except Exception:
             self._pill_wh = end
