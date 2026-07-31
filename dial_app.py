@@ -57,7 +57,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.2.0"
+APP_VERSION = "3.3.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
