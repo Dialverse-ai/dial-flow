@@ -57,10 +57,10 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.1.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
-PILL_BG = "#14121D"
+PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
 UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
@@ -93,6 +93,8 @@ DEFAULT_SETTINGS = {
     "language": "auto",
     "tone": "auto",
     "app_aware": True,
+    "paste_mode": "paste",
+    "snippets": [],
     "theme": "system",
     "autostart": False,
     "idle_pill": True,
@@ -231,13 +233,13 @@ def _apply_autostart(enabled):
         logging.exception("autostart update failed")
 
 PILL_HTML = """<!DOCTYPE html><html><head><style>
-*{margin:0;padding:0}html,body{background:#14121D;overflow:hidden}
+*{margin:0;padding:0}html,body{background:#171320;overflow:hidden}
 body{font-family:'Segoe UI',sans-serif;height:100vh;box-sizing:border-box;
-position:relative;border:1px solid rgba(255,255,255,.30);border-radius:8px}
+position:relative;border:1px solid rgba(255,248,235,.26);border-radius:8px}
 body.mini{border:none;border-radius:4px;
-box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+box-shadow:inset 0 0 0 1px rgba(255,248,235,.16)}
 /* design 2a keyframes — authoritative */
-@keyframes pillBreathe{0%,100%{opacity:.25}50%{opacity:.6}}
+@keyframes pillBreathe{0%,100%{opacity:.3;transform:scaleX(1)}50%{opacity:.75;transform:scaleX(1.12)}}
 @keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
 @keyframes pillDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.72);opacity:.55}}
 @keyframes pillShim{0%,100%{opacity:.18}50%{opacity:.9}}
@@ -248,23 +250,24 @@ box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
 /* layers */
 .layer{position:absolute;inset:0;display:flex;align-items:center;
 justify-content:center;gap:8px}
-#core{width:22px;height:6px;border-radius:3px;
-background:radial-gradient(closest-side,rgba(141,121,246,.9),rgba(141,121,246,0));
-animation:coreIn .4s ease-out both,pillBreathe 3.2s ease-in-out .4s infinite}
+#core{width:24px;height:6px;border-radius:3px;
+background:radial-gradient(closest-side,rgba(180,156,250,.95),rgba(108,85,232,.4) 65%,rgba(108,85,232,0));
+animation:coreIn .4s ease-out both,pillBreathe 3.6s ease-in-out .4s infinite}
 #recwash{position:absolute;inset:0;border-radius:7px;
-box-shadow:inset 0 0 12px rgba(242,107,94,.16)}
+box-shadow:inset 0 0 12px rgba(242,107,94,.18)}
 #flashrim{position:absolute;inset:0;border-radius:7px;
-box-shadow:inset 0 0 10px rgba(201,190,255,.4);animation:pillFlash .3s ease-out both}
+box-shadow:inset 0 0 10px rgba(212,198,255,.45);animation:pillFlash .3s ease-out both}
 .dotwrap{display:flex;animation:pillPop .12s ease-out .08s both}
 .dotwrap i{width:9px;height:9px;border-radius:999px;background:#F26B5E;display:block;
+box-shadow:0 0 8px rgba(242,107,94,.5);
 animation:pillDot 1.4s ease-in-out .2s infinite}
-#t{font-size:13px;font-weight:600;color:#F5F3FA;font-variant-numeric:tabular-nums;
+#t{font-size:13px;font-weight:600;color:#F7F4EC;font-variant-numeric:tabular-nums;
 animation:pillRise .14s ease-out .12s both}
 #wave{display:flex;align-items:center;gap:2px;animation:pillRise .16s ease-out .16s both}
-#wave i{width:2px;height:2px;border-radius:1px;background:#F26B5E;display:block}
+#wave i{width:2px;height:2px;border-radius:1px;background:#FF8B7C;display:block}
 .pspin{display:flex;animation:pillPop .12s ease-out .06s both}
 .pspin i{width:13px;height:13px;border-radius:999px;display:block;
-border:2px solid rgba(159,139,255,.25);border-top-color:#9F8BFF;
+border:2px solid rgba(156,134,246,.25);border-top-color:#9C86F6;
 animation:pillSpin .8s linear infinite}
 #pdots{display:flex;align-items:center;gap:3.5px;animation:pillRise .16s ease-out .1s both}
 #pdots i{width:2.5px;height:2.5px;border-radius:999px;background:#8F86B8;display:block;
@@ -430,6 +433,33 @@ def _send_copy():
     _send_ctrl_vk(0x43)  # Ctrl+C
 
 
+def _send_type(text):
+    """Simulate real keystrokes via KEYEVENTF_UNICODE for fields that block
+    Ctrl+V (terminals, some CRM iframes). Newlines go as VK_RETURN — many
+    editors ignore a typed U+000A. Sent in chunks so target apps keep up."""
+    UNICODE, KEYUP = 0x0004, 0x0002
+
+    def ki(vk, scan, flags):
+        inp = _INPUT(type=1)
+        inp.ki = _KEYBDINPUT(vk, scan, flags, 0, ctypes.pointer(_paste_extra))
+        return inp
+
+    seq = []
+    for ch in text.replace("\r\n", "\n"):
+        if ch == "\n":
+            seq += [ki(0x0D, 0, 0), ki(0x0D, 0, KEYUP)]
+            continue
+        units = ch.encode("utf-16-le")
+        for i in range(0, len(units), 2):
+            scan = units[i] | (units[i + 1] << 8)
+            seq += [ki(0, scan, UNICODE), ki(0, scan, UNICODE | KEYUP)]
+    for i in range(0, len(seq), 200):
+        chunk = seq[i:i + 200]
+        arr = (_INPUT * len(chunk))(*chunk)
+        ctypes.windll.user32.SendInput(len(chunk), arr, ctypes.sizeof(_INPUT))
+        time.sleep(0.01)
+
+
 def _parse_dictionary(text):
     pairs = []
     for line in text.splitlines():
@@ -454,6 +484,19 @@ def _apply_dictionary(text, pairs):
     return text
 
 
+def _match_snippet(text, snippets):
+    """Say just a snippet's trigger, get its template pasted. Exact match,
+    forgiving about case, whitespace and trailing punctuation."""
+    norm = re.sub(r"\s+", " ", text).strip().strip(".!?,،؟ ").lower()
+    if not norm:
+        return None
+    for s in snippets or []:
+        trig = (s.get("t") or "").strip().lower()
+        if trig and norm == trig:
+            return s.get("x") or None
+    return None
+
+
 class Engine:
     """Recording + transcription + optional AI cleanup. UI-agnostic."""
 
@@ -474,6 +517,9 @@ class Engine:
         self.mode = "dictate"       # or "command" (voice-edit selection)
         self._app_ctx = "general"   # focused-app category at record start
         self._cmd_selection = ""
+        # serializes the clipboard between command-mode's empty-sentinel
+        # capture and worker threads pasting results
+        self._clip_lock = threading.Lock()
         self.rebuild_chimes()
         # first device-open of a session is the slow one — take that hit now
         threading.Thread(target=self._prewarm_mic, daemon=True).start()
@@ -623,21 +669,31 @@ class Engine:
                 except Exception:
                     logging.exception("audio enhance failed — using raw")
             self.on_state("transcribing", "")
-            worker = (self._command_transcribe if mode == "command"
-                      else self._transcribe)
-            threading.Thread(target=worker,
-                             args=(audio, elapsed, self.language), daemon=True).start()
+            if mode == "command":
+                # snapshot the selection NOW — a second command-mode session
+                # started mid-transcription must not swap it under this worker
+                threading.Thread(
+                    target=self._command_transcribe,
+                    args=(audio, elapsed, self.language, self._cmd_selection),
+                    daemon=True).start()
+            else:
+                threading.Thread(
+                    target=self._transcribe,
+                    args=(audio, elapsed, self.language), daemon=True).start()
 
     def _asr(self, wav_bytes, lang):
         """One transcription call. Returns (text, error) — exactly one is set.
-        lang 'auto' omits the language field so the model detects it; if the
-        API rejects that, retry once pinned to Arabic (the code-switch model
-        transcribes English fine under 'ar')."""
-        attempts = [None, "ar"] if lang == "auto" else [lang]
-        for i, attempt_lang in enumerate(attempts):
-            data = {"model": MODEL}
-            if attempt_lang:
-                data["language"] = attempt_lang
+
+        'auto' maps straight to 'ar': the API REQUIRES a language and rejects
+        'auto' (probed 2026-07-31), and the code-switch model transcribes
+        pure English fine under 'ar' — so auto costs zero extra uploads.
+
+        Transient failures (flaky uplink kills big WAV uploads mid-write,
+        seen in the field) retry up to 3 attempts with backoff; the (10,120)
+        timeout gives slow uploads room the old flat 60s didn't."""
+        data = {"model": MODEL, "language": "ar" if lang == "auto" else lang}
+        last_err = "Network error — check connection"
+        for attempt in range(3):
             try:
                 resp = requests.post(
                     API_URL,
@@ -645,65 +701,109 @@ class Engine:
                     data=data,
                     files={"file": ("audio.wav", io.BytesIO(wav_bytes),
                                     "audio/wav")},
-                    timeout=60,
+                    timeout=(10, 120),
                 )
             except requests.RequestException:
-                logging.exception("api call failed")
-                return None, "Network error — check connection"
+                logging.exception("asr attempt %s/3 failed", attempt + 1)
+                time.sleep(1.5 * (attempt + 1))
+                continue
             if resp.status_code == 200:
                 return resp.json().get("text", "").strip(), None
             if resp.status_code == 429:
-                return None, "Rate limited — wait a few seconds"
+                last_err = "Rate limited — try again in a minute"
+                time.sleep(3.0)
+                continue
             logging.error("api %s: %s", resp.status_code, resp.text[:300])
-            if (attempt_lang is None and i + 1 < len(attempts)
-                    and resp.status_code in (400, 422)):
-                continue  # this API build wants an explicit language
             return None, f"API error {resp.status_code}"
-        return None, "API error"
+        return None, last_err
+
+    def _keep_audio(self, wav_bytes, t0):
+        """Persist the take BEFORE any network I/O — a failed upload must
+        never cost the user a re-record. Rolling cap; oldest pruned."""
+        try:
+            os.makedirs(AUDIO_DIR, exist_ok=True)
+            name = f"{int(t0 * 1000)}.wav"
+            with open(os.path.join(AUDIO_DIR, name), "wb") as f:
+                f.write(wav_bytes)
+            for old in sorted(os.listdir(AUDIO_DIR))[:-AUDIO_KEEP]:
+                os.remove(os.path.join(AUDIO_DIR, old))
+            return name
+        except OSError:
+            logging.exception("audio save failed")
+            return ""
+
+    def _worker_state(self, state, detail=""):
+        """State pushes from finished/finishing workers. A live recording
+        owns the status UI — a stale worker's 'cleaning'/'idle'/'error' must
+        not stomp it on the main window or the pill."""
+        if self.recording:
+            return
+        self.on_state(state, detail)
+
+    def _insert_text(self, text):
+        """Deliver text into the focused field. The transcript always lands
+        in the clipboard too — manual Ctrl+V is the recovery path."""
+        with self._clip_lock:
+            pyperclip.copy(text)
+            if self.settings.get("paste_mode", "paste") == "type":
+                _send_type(text)
+            else:
+                time.sleep(0.15)  # let the clipboard write commit first
+                _send_paste()
 
     def _transcribe(self, audio, duration, lang):
         t0 = time.time()
         buf = io.BytesIO()
         sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
-        buf.seek(0)
-        text, err = self._asr(buf.getvalue(), lang)
+        wav = buf.getvalue()
+        audio_name = self._keep_audio(wav, t0)
+        text, err = self._asr(wav, lang)
         if err:
-            self.on_state("error", err)
+            # the take is safe on disk — surface a retryable failed entry
+            # in the feed instead of throwing the recording away
+            entry = {
+                "ts": time.time(), "lang": lang, "text": "",
+                "secs": round(duration, 1), "words": 0,
+                "latency": round(time.time() - t0, 1), "cleaned": False,
+                "raw": "", "audio": audio_name, "app": self._app_ctx,
+                "failed": err,
+            }
+            self.on_transcript(entry)
+            self._worker_state("error", err + (" — take saved, retry from "
+                                               "history" if audio_name else ""))
             return
         if not text:
-            self.on_state("idle", "Nothing recognized")
+            self._worker_state("idle", "Nothing recognized")
             return
 
-        # keep the recording so a bad transcript can be retried on the same
-        # audio later (rolling cap; oldest pruned)
-        audio_name = ""
-        try:
-            os.makedirs(AUDIO_DIR, exist_ok=True)
-            audio_name = f"{int(t0 * 1000)}.wav"
-            with open(os.path.join(AUDIO_DIR, audio_name), "wb") as f:
-                f.write(buf.getvalue())
-            for old in sorted(os.listdir(AUDIO_DIR))[:-AUDIO_KEEP]:
-                os.remove(os.path.join(AUDIO_DIR, old))
-        except OSError:
-            logging.exception("audio save failed")
-            audio_name = ""
+        snippet = _match_snippet(text, self.settings.get("snippets"))
+        if snippet is not None:
+            self._insert_text(snippet)
+            entry = {
+                "ts": time.time(), "lang": lang, "text": snippet,
+                "secs": round(duration, 1), "words": len(snippet.split()),
+                "latency": round(time.time() - t0, 1), "cleaned": False,
+                "raw": "", "audio": audio_name, "app": self._app_ctx,
+                "snippet": True,
+            }
+            self.on_transcript(entry)
+            self._worker_state("idle", "")
+            return
 
         raw_text = text
         cleaned = False
         if self.settings.get("flow_mode", True):
-            self.on_state("cleaning", "")
+            self._worker_state("cleaning", "")
             out = self._flow_clean(text, self._app_ctx)
             if out:
                 text, cleaned = out, True
+            else:
+                logging.warning("flow cleanup unavailable — pasted raw")
 
         text = _apply_dictionary(
             text, _parse_dictionary(self.settings.get("dictionary", "")))
 
-        # the transcript stays in the clipboard afterwards on purpose —
-        # if a paste ever misses, Ctrl+V by hand recovers it
-        pyperclip.copy(text)
-        time.sleep(0.15)  # let the clipboard write commit before pasting
-        _send_paste()
+        self._insert_text(text)
         entry = {
             "ts": time.time(),
             "lang": lang,
@@ -714,9 +814,11 @@ class Engine:
             "cleaned": cleaned,
             "raw": raw_text if cleaned else "",  # for "Undo AI edit"
             "audio": audio_name,                 # for retry / extract audio
+            "app": self._app_ctx,                # for per-app insights
         }
         self.on_transcript(entry)
-        self.on_state("idle", "")
+        self._worker_state("idle", "" if cleaned or not self.settings.get(
+            "flow_mode", True) else "Pasted raw — Flow couldn't reach the AI")
 
     def transcribe_file(self, path, lang):
         """Re-run transcription on a kept recording. Returns text or None."""
@@ -741,18 +843,19 @@ class Engine:
         # mark "starting" through the clipboard capture too, so a hold-mode
         # release in this window queues _want_stop instead of getting lost
         self._starting = True
-        try:
-            old_clip = pyperclip.paste()
-        except Exception:
-            old_clip = ""
-        try:
-            pyperclip.copy("")   # sentinel: empty = nothing was selected
-            _send_copy()
-            time.sleep(0.18)     # let the target app service WM_COPY
-            sel = pyperclip.paste()
-        except Exception:
-            logging.exception("command: clipboard capture failed")
-            sel = ""
+        with self._clip_lock:
+            try:
+                old_clip = pyperclip.paste()
+            except Exception:
+                old_clip = ""
+            try:
+                pyperclip.copy("")   # sentinel: empty = nothing was selected
+                _send_copy()
+                time.sleep(0.18)     # let the target app service WM_COPY
+                sel = pyperclip.paste()
+            except Exception:
+                logging.exception("command: clipboard capture failed")
+                sel = ""
         if not sel.strip():
             self._starting = False
             self._want_stop = False
@@ -776,16 +879,15 @@ class Engine:
     def stop_command(self):
         self.stop_recording()
 
-    def _command_transcribe(self, audio, duration, lang):
+    def _command_transcribe(self, audio, duration, lang, selection):
         t0 = time.time()
         buf = io.BytesIO()
         sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
         instruction, err = self._asr(buf.getvalue(), "auto")
         if err or not instruction:
-            self.on_state("error", err or "Didn't catch the instruction")
+            self._worker_state("error", err or "Didn't catch the instruction")
             return
-        self.on_state("cleaning", "")
-        selection = self._cmd_selection
+        self._worker_state("cleaning", "")
         out = self._chat(
             "You edit text by voice command. Apply the INSTRUCTION to the "
             "TEXT and return ONLY the edited text — no quotes, no commentary, "
@@ -794,12 +896,10 @@ class Engine:
             "asks for a translation).\n\n"
             f"INSTRUCTION: {instruction}\n\nTEXT:\n{selection}")
         if not out:
-            self.on_state("error", "Edit failed — try again")
+            self._worker_state("error", "Edit failed — try again")
             return
-        # paste replaces the still-highlighted selection in the target app
-        pyperclip.copy(out)
-        time.sleep(0.15)
-        _send_paste()
+        # insertion replaces the still-highlighted selection in the target app
+        self._insert_text(out)
         entry = {
             "ts": time.time(),
             "lang": lang,
@@ -813,12 +913,15 @@ class Engine:
             "audio": "",
         }
         self.on_transcript(entry)
-        self.on_state("idle", "")
+        self._worker_state("idle", "")
 
     # ---------- AI cleanup ----------
 
     def _chat(self, prompt):
-        """One Cohere chat call with the model-fallback chain."""
+        """One Cohere chat call with the model-fallback chain. Transient
+        failures (429, network blips) retry — a silently skipped cleanup
+        reads to the user as 'the feature is broken'."""
+        transient = 0
         while self._clean_model_idx < len(CLEANUP_MODELS):
             model = CLEANUP_MODELS[self._clean_model_idx]
             try:
@@ -828,11 +931,15 @@ class Engine:
                     json={"model": model,
                           "messages": [{"role": "user", "content": prompt}],
                           "temperature": 0.1},
-                    timeout=30,
+                    timeout=(10, 45),
                 )
             except requests.RequestException:
                 logging.exception("chat call failed")
-                return None
+                transient += 1
+                if transient > 2:
+                    return None
+                time.sleep(1.5 * transient)
+                continue
             if resp.status_code == 200:
                 try:
                     parts = resp.json()["message"]["content"]
@@ -841,6 +948,12 @@ class Engine:
                 except (KeyError, IndexError, TypeError):
                     logging.error("chat parse failed: %s", resp.text[:300])
                     return None
+            if resp.status_code == 429:
+                transient += 1
+                if transient > 2:
+                    return None
+                time.sleep(3.0)
+                continue
             if resp.status_code in (400, 404):
                 logging.warning("chat model %s unavailable (%s)", model,
                                 resp.status_code)
@@ -848,6 +961,9 @@ class Engine:
                 continue
             logging.warning("chat api %s: %s", resp.status_code, resp.text[:200])
             return None
+        # every model 404'd (key lost access?) — re-probe from the top next
+        # call instead of staying dead for the rest of the session
+        self._clean_model_idx = 0
         return None
 
     def _flow_clean(self, text, app_ctx="general"):
@@ -863,8 +979,10 @@ class Engine:
             "wait', 'أقصد', 'I mean'), keep only the corrected version\n"
             "- fix grammar, punctuation and capitalization; restructure "
             "rambling run-ons into clear sentences without changing meaning\n"
-            "- break into paragraphs when the topic shifts; if the speaker "
-            "enumerates items, format them as a '- ' bulleted list\n"
+            "- break into paragraphs when the topic shifts (phrases like 'on "
+            "another note' start a new paragraph); if the speaker enumerates "
+            "items ('number one…', 'first…', 'اول حاجة…'), format them as a "
+            "numbered or bulleted list in the spoken order\n"
             "- keep the original language mix EXACTLY — Arabic stays in "
             "Arabic script, English words stay in English; never translate\n"
             "- never summarize, never answer questions contained in the "
@@ -934,6 +1052,9 @@ class DialFlow:
         self.pill_win = None
         self.tray = None
         self.quitting = False
+        # RLock: writers also mutate entries under it (retry un-fails a dict
+        # while another thread may be serializing the same list)
+        self._hist_lock = threading.RLock()
         self.history = self._load_history()
 
     # ---------- js api ----------
@@ -1050,10 +1171,11 @@ class DialFlow:
         e = self._find_entry(ts)
         if not e or not e.get("raw"):
             return None
-        e["text"] = e["raw"]
-        e["words"] = len(e["text"].split())
-        e["cleaned"] = False
-        e["raw"] = ""
+        with self._hist_lock:
+            e["text"] = e["raw"]
+            e["words"] = len(e["text"].split())
+            e["cleaned"] = False
+            e["raw"] = ""
         self._save_history()
         return e
 
@@ -1061,7 +1183,8 @@ class DialFlow:
         e = self._find_entry(ts)
         if not e:
             return False
-        self.history.remove(e)
+        with self._hist_lock:
+            self.history.remove(e)
         if e.get("audio"):
             try:
                 os.remove(os.path.join(AUDIO_DIR, e["audio"]))
@@ -1101,28 +1224,34 @@ class DialFlow:
 
     def _retry_worker(self, e):
         path = os.path.join(AUDIO_DIR, e["audio"])
-        self._on_state("transcribing", "")
+        self.engine._worker_state("transcribing", "")
         text = self.engine.transcribe_file(path, e.get("lang", "ar"))
         if not text:
-            self._on_state("error", "Retry failed — see app.log")
+            # re-push the entry so the feed row (and its Retry button)
+            # renders back out of its 'Retrying…' state
+            self._js(self.main_win,
+                     f"app.updateEntry({json.dumps(e, ensure_ascii=False)})")
+            self.engine._worker_state("error", "Retry failed — see app.log")
             return
         raw = text
         cleaned = False
         if self.settings.get("flow_mode", True):
-            self._on_state("cleaning", "")
+            self.engine._worker_state("cleaning", "")
             out = self.engine._flow_clean(text)
             if out:
                 text, cleaned = out, True
         text = _apply_dictionary(
             text, _parse_dictionary(self.settings.get("dictionary", "")))
-        e["text"] = text
-        e["words"] = len(text.split())
-        e["cleaned"] = cleaned
-        e["raw"] = raw if cleaned else ""
+        with self._hist_lock:
+            e["text"] = text
+            e["words"] = len(text.split())
+            e["cleaned"] = cleaned
+            e["raw"] = raw if cleaned else ""
+            e.pop("failed", None)  # a successful retry un-fails the entry
         self._save_history()
         self._js(self.main_win,
                  f"app.updateEntry({json.dumps(e, ensure_ascii=False)})")
-        self._on_state("idle", "Transcript updated")
+        self.engine._worker_state("idle", "Transcript updated")
 
     def quit(self):
         self._shutdown()
@@ -1256,7 +1385,7 @@ class DialFlow:
             # the DWMWA_COLOR_NONE sentinel renders as a LITERAL near-white
             # color on some builds (that was the ghost capsule around the
             # bubble). The design's hairline edge is drawn in CSS.
-            border = ctypes.c_uint(0x001D1214)  # COLORREF BGR of #14121D
+            border = ctypes.c_uint(0x00201317)  # COLORREF BGR of #171320
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 34, ctypes.byref(border), 4)
             # HUD behavior: WS_EX_NOACTIVATE so showing the pill can never
@@ -1435,6 +1564,8 @@ class DialFlow:
             if flash:
                 self._js(self.pill_win, "app.done()")
                 time.sleep(0.30)
+            if self.engine is not None and self.engine.recording:
+                return  # a new recording started mid-flash — leave the pill
             if self.settings.get("idle_pill", True):
                 self._js(self.pill_win, "app.mode('')")  # empty while moving
                 self._pill_visible = True
@@ -1518,7 +1649,8 @@ class DialFlow:
             pass
 
     def _on_transcript(self, entry):
-        self.history.append(entry)
+        with self._hist_lock:
+            self.history.append(entry)
         self._save_history()
         self._js(self.main_win, f"app.addEntry({json.dumps(entry, ensure_ascii=False)})")
 
@@ -1553,11 +1685,19 @@ class DialFlow:
             return []
 
     def _save_history(self):
-        try:
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.history[-500:], f, ensure_ascii=False, indent=1)
-        except OSError:
-            logging.exception("history save failed")
+        """Serialized + atomic: concurrent workers (transcribe, retry, JS
+        bridge) must never interleave writes, and a crash mid-write must
+        never leave truncated JSON (which _load_history reads as 'no
+        history' and silently starts over)."""
+        with self._hist_lock:
+            try:
+                tmp = HISTORY_FILE + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(self.history[-500:], f, ensure_ascii=False,
+                              indent=1)
+                os.replace(tmp, HISTORY_FILE)
+            except OSError:
+                logging.exception("history save failed")
 
     def _setup_tray(self):
         try:

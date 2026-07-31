@@ -6,35 +6,39 @@
 <style>
 :root, :root[data-theme=light]{
   color-scheme:light;
-  --bg:#FAFAF8; --surface:#FFFFFF; --field:#F4F4F6; --tint:#F1F1F4;
-  --border:#E8E8EC; --border-strong:#DCDCE2; --divider:#F0F0F3;
-  --text:#1B1B20; --text2:#5F5F6B; --muted:#8E8E99; --faint:#B4B4BE;
-  --accent:#6C55E8; --accent-hover:#5A45D0; --accent-text:#5240C9;
-  --accent-tint:#EFECFC; --accent-tint-b:#DFD8F9; --accent-soft:#E5DEFA;
-  --rec:#E0524A; --rec-tint:#FBEAE8; --rec-tint-b:#F2D3CF; --rec-text:#B23730;
-  --warn:#B07818; --warn-tint:#F8F0DE; --warn-tint-b:#EBDFC2; --warn-text:#8F6510;
-  --ok:#3E8E5A; --ok-tint:#E7F3EA; --ok-tint-b:#D0E6D6; --ok-text:#2F7A4C;
-  --meter-idle:#DFDFE5;
-  --sh-card:0 1px 2px rgba(27,27,32,.04),0 0 0 1px rgba(27,27,32,.01);
-  --sh-chip:0 1px 2px rgba(27,27,32,.08);
-  --sh-pop:0 12px 32px -8px rgba(27,27,32,.22);
-  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238E8E99' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --bg:#F6F1E6; --sidebar:#EFE8D8; --surface:#FFFCF5; --field:#F9F5EC; --tint:#F2ECDE;
+  --border:#E7DDC8; --border-strong:#D8CDB4; --divider:#F0E9D9;
+  --text:#2B2620; --text2:#6C6455; --muted:#998F7D; --faint:#B5AB96;
+  --accent:#6C55E8; --accent2:#8B5CF6; --accent-hover:#5A45D0; --accent-text:#5240C9;
+  --accent-tint:#EEEAFB; --accent-tint-b:#DDD4F7; --accent-soft:#E3DBF8;
+  --rec:#D0453E; --rec-tint:#FAE9E6; --rec-tint-b:#F0D2CC; --rec-text:#B23730;
+  --warn:#B07818; --warn-tint:#F7EED9; --warn-tint-b:#EADCBB; --warn-text:#8F6510;
+  --ok:#3E8E5A; --ok-tint:#E6F2E8; --ok-tint-b:#CFE5D4; --ok-text:#2F7A4C;
+  --gold:#C08F2F; --gold-tint:#F7EDD8;
+  --meter-idle:#DCD2BC;
+  --sh-card:0 1px 2px rgba(43,38,32,.05);
+  --sh-chip:0 1px 2px rgba(43,38,32,.09);
+  --sh-lift:0 10px 26px -10px rgba(43,38,32,.28);
+  --sh-pop:0 12px 32px -8px rgba(43,38,32,.25);
+  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23998F7D' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 :root[data-theme=dark]{
   color-scheme:dark;
-  --bg:#131316; --surface:#1C1C21; --field:#232329; --tint:#26262D;
-  --border:#2A2A32; --border-strong:#3A3A42; --divider:#26262C;
-  --text:#F1F1F4; --text2:#A6A6B2; --muted:#7C7C88; --faint:#55555E;
-  --accent:#8B76F0; --accent-hover:#9C8AF4; --accent-text:#A695F5;
-  --accent-tint:#2A2540; --accent-tint-b:#3A3358; --accent-soft:#332C52;
-  --rec:#F26B5E; --rec-tint:#3A2422; --rec-tint-b:#57302C; --rec-text:#F58A80;
+  --bg:#141118; --sidebar:#18151F; --surface:#1E1A27; --field:#252030; --tint:#282334;
+  --border:#2F2940; --border-strong:#3D3550; --divider:#282337;
+  --text:#F2EEE6; --text2:#AFA9B8; --muted:#7F7990; --faint:#575166;
+  --accent:#9C86F6; --accent2:#B49CFA; --accent-hover:#AB97F8; --accent-text:#B3A1F8;
+  --accent-tint:#2B2442; --accent-tint-b:#3C3260; --accent-soft:#352C55;
+  --rec:#F26B5E; --rec-tint:#3B2523; --rec-tint-b:#59312D; --rec-text:#F68F84;
   --warn:#D89B3A; --warn-tint:#3A2F1B; --warn-tint-b:#57452A; --warn-text:#E5B36A;
   --ok:#4CAF72; --ok-tint:#1F3327; --ok-tint-b:#2E4A38; --ok-text:#6BC98F;
-  --meter-idle:#3A3A42;
-  --sh-card:0 1px 2px rgba(0,0,0,.25),0 0 0 1px rgba(255,255,255,.02);
-  --sh-chip:0 1px 2px rgba(0,0,0,.35);
+  --gold:#D9A94A; --gold-tint:#3A2F17;
+  --meter-idle:#3A3447;
+  --sh-card:0 1px 2px rgba(0,0,0,.28);
+  --sh-chip:0 1px 2px rgba(0,0,0,.38);
+  --sh-lift:0 12px 28px -10px rgba(0,0,0,.55);
   --sh-pop:0 12px 32px -8px rgba(0,0,0,.6);
-  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237C7C88' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237F7990' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
 html,body{height:100%;background:var(--bg);overflow:hidden}
@@ -42,14 +46,13 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;color:
   -webkit-font-smoothing:antialiased;font-size:13px;
   transition:background .18s ease,color .18s ease}
 button{font-family:inherit;border:none;cursor:pointer;background:none;color:inherit}
-input,select{font-family:inherit;outline:none}
+input,select,textarea{font-family:inherit;outline:none}
 svg{flex:none}
-h1,.page-title,.hd{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif;
-  font-weight:650;letter-spacing:-.02em}
+.serif{font-family:Georgia,'Times New Roman',serif;font-weight:400}
 ::-webkit-scrollbar{width:8px}
 ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
-button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @keyframes yfPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.55}}
@@ -61,10 +64,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 #setup{flex-direction:column;align-items:center;justify-content:center;background:var(--bg)}
 .setup-box{display:flex;flex-direction:column;align-items:center;text-align:center;
   background:var(--surface);border:1px solid var(--border);border-radius:20px;
-  box-shadow:var(--sh-card);padding:48px 56px;animation:fadeUp .35s ease both}
+  box-shadow:var(--sh-card);padding:48px 56px;position:relative;overflow:hidden;
+  animation:fadeUp .35s ease both}
+.setup-box::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2))}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .setup-box img{width:56px;height:56px}
-.setup-box h1{font-size:28px;margin-top:18px}
+.setup-box h1{font-family:Georgia,serif;font-weight:400;font-size:30px;margin-top:18px}
 .setup-box p{font-size:13px;line-height:1.65;color:var(--text2);margin-top:8px;max-width:380px}
 #key-input{width:380px;height:38px;padding:0 13px;background:var(--field);
   border:1px solid var(--border-strong);border-radius:10px;font-size:12.5px;color:var(--text);
@@ -80,9 +86,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 
 /* ===== buttons ===== */
 .btn-primary{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 17px;
-  background:var(--accent);border-radius:9px;font-size:12.5px;font-weight:600;color:#fff;
-  box-shadow:var(--sh-chip);transition:background .14s ease,transform .1s}
-.btn-primary:hover{background:var(--accent-hover)}
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:9px;
+  font-size:12.5px;font-weight:600;color:#fff;box-shadow:var(--sh-chip);
+  transition:box-shadow .16s ease,filter .16s ease,transform .1s}
+.btn-primary:hover{filter:brightness(1.07);box-shadow:0 4px 14px -4px var(--accent)}
 .btn-primary:active{transform:scale(.97)}
 .btn-primary:disabled{opacity:.45;cursor:default}
 .btn-ghost{height:34px;display:inline-flex;align-items:center;padding:0 15px;border-radius:9px;
@@ -90,29 +97,31 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 .btn-ghost:hover{background:var(--tint);color:var(--text)}
 .btn-2nd{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 13px;
   background:var(--surface);border:1px solid var(--border-strong);border-radius:9px;
-  font-size:12.5px;font-weight:600;color:var(--text);transition:background .14s}
-.btn-2nd:hover{background:var(--field)}
+  font-size:12.5px;font-weight:600;color:var(--text);transition:background .14s,border-color .14s}
+.btn-2nd:hover{background:var(--field);border-color:var(--accent-tint-b)}
 
 /* ===== shell ===== */
 #main{flex-direction:row}
-#side{width:216px;flex:none;background:var(--bg);border-right:1px solid var(--border);
+#side{width:216px;flex:none;background:var(--sidebar);border-right:1px solid var(--border);
   display:flex;flex-direction:column;padding:16px 12px 14px}
 .brand{display:flex;align-items:center;gap:9px;padding:2px 6px}
 .brand img{width:28px;height:28px}
-.brand .n{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
-  letter-spacing:-.01em;font-size:15px;color:var(--text)}
+.brand .n{font-family:Georgia,serif;font-size:16px;color:var(--text)}
 .brand .s{font-size:10px;color:var(--muted);letter-spacing:.3px}
 .nav{display:flex;flex-direction:column;gap:2px;margin-top:24px}
 .nav-item{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:9px;
-  font-size:13px;font-weight:600;color:var(--text2);width:100%;text-align:left;
+  font-size:13px;font-weight:600;color:var(--text2);width:100%;text-align:left;position:relative;
   transition:background .14s ease,color .14s ease}
 .nav-item:hover{background:var(--tint);color:var(--text)}
 .nav-item.on{background:var(--surface);box-shadow:var(--sh-chip);color:var(--text)}
-.nav-item svg{stroke:var(--muted)}
+.nav-item.on::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;
+  border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--accent),var(--accent2))}
+.nav-item svg{stroke:var(--muted);transition:stroke .14s}
 .nav-item.on svg{stroke:var(--accent)}
 .profile{display:flex;align-items:center;gap:9px;border-top:1px solid var(--border);
   margin-top:12px;padding:12px 6px 0}
-.profile .av{width:26px;height:26px;border-radius:999px;background:var(--accent-soft);
+.profile .av{width:26px;height:26px;border-radius:999px;
+  background:linear-gradient(135deg,var(--accent-soft),var(--accent-tint));
   display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;
   color:var(--accent-text)}
 .profile .pn{font-size:12px;font-weight:600}
@@ -121,15 +130,17 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 .page{flex:1;display:none;flex-direction:column;padding:20px 26px 22px;min-height:0;overflow:hidden}
 .page.on{display:flex}
 .page-date{font-size:12px;color:var(--muted)}
-.page-title{font-size:26px;margin-top:3px}
+.page-title{font-family:Georgia,serif;font-weight:400;font-size:29px;margin-top:3px}
 .section-label{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted)}
 
 /* ===== dictation ===== */
 #dict-cols{flex:1;display:flex;gap:22px;min-height:0;margin-top:0}
 #dict-left{flex:1;min-width:0;display:flex;flex-direction:column}
 .status-card{margin-top:16px;background:var(--surface);border:1px solid var(--border);
-  border-radius:14px;box-shadow:var(--sh-card);flex:none}
-.status-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px}
+  border-radius:14px;box-shadow:var(--sh-card);flex:none;position:relative;overflow:hidden}
+.status-card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.55}
+.status-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 11px}
 .spill{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;
   border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent;
   transition:background .2s,border-color .2s,color .2s}
@@ -152,7 +163,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 #meter.live i{background:var(--rec)}
 .status-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;
   flex-wrap:wrap;border-top:1px solid var(--divider);padding:9px 14px}
-.seg{display:flex;background:var(--field);border:1px solid var(--border);border-radius:9px;
+.seg{display:flex;background:var(--tint);border:1px solid var(--border);border-radius:9px;
   padding:2px;gap:2px}
 .seg button{height:24px;padding:0 11px;border-radius:6px;font-size:12px;font-weight:600;
   color:var(--text2);transition:background .14s,color .14s,box-shadow .14s;white-space:nowrap}
@@ -168,7 +179,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 .switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;
   border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.28);
   transition:left .16s cubic-bezier(.34,1.3,.64,1)}
-.switch.on{background:var(--accent)}
+.switch.on{background:linear-gradient(135deg,var(--accent),var(--accent2))}
 .switch.on::after{left:18px}
 .tools-row{margin-top:16px;display:flex;align-items:center;gap:10px;flex:none}
 .search-wrap{flex:1;height:32px;display:flex;align-items:center;gap:8px;padding:0 11px;
@@ -195,25 +206,31 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 /* each row is its own stacking context (entry animation), so later rows paint
    over an open menu unless the open row is lifted above its siblings */
 .row.menu-open{z-index:50}
+.row.failed{background:var(--rec-tint);border:1px solid var(--rec-tint-b)}
+.row.failed:hover{background:var(--rec-tint);box-shadow:var(--sh-card)}
 .row .t{flex:none;width:38px;font-size:11.5px;color:var(--muted);
   font-variant-numeric:tabular-nums;padding-top:2px}
 .row .txt{flex:1;font-size:13.5px;line-height:1.6;-webkit-user-select:text;user-select:text}
 .row .txt.ar{font-size:15px;line-height:1.7;direction:rtl;text-align:right}
+.row .fail-t{flex:1;font-size:12.5px;line-height:1.5}
+.row .fail-t b{color:var(--rec-text);font-weight:600}
+.row .fail-t .fs{font-size:11px;color:var(--muted);margin-top:2px}
 .row .acts{flex:none;display:flex;align-items:center;gap:6px}
 .badge{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;
   border-radius:999px;background:var(--accent-tint);color:var(--accent-text);
   font-size:10.5px;font-weight:600;margin-top:2px}
 .badge i{font-style:normal;font-size:8px}
+.badge.gold{background:var(--gold-tint);color:var(--gold)}
 .row .hov{display:none;align-items:center;gap:6px}
 .row:hover .hov,.row.menu-open .hov{display:flex}
 .copy-btn{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
-  border-radius:7px;background:var(--field);border:1px solid var(--border-strong);color:var(--text2);
+  border-radius:7px;background:var(--tint);border:1px solid var(--border-strong);color:var(--text2);
   font-size:11px;font-weight:600;transition:background .14s,color .14s}
-.copy-btn:hover{background:var(--tint);color:var(--text)}
+.copy-btn:hover{background:var(--field);color:var(--text)}
 .copy-btn.done{background:var(--ok-tint);border-color:var(--ok-tint-b);color:var(--ok-text)}
 .dots-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
   border-radius:7px;color:var(--muted);transition:background .14s,color .14s}
-.dots-btn:hover,.row.menu-open .dots-btn{background:var(--tint);color:var(--text)}
+.dots-btn:hover,.row.menu-open .dots-btn{background:var(--field);color:var(--text)}
 .menu{position:absolute;top:42px;right:10px;z-index:20;width:198px;background:var(--surface);
   border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh-pop);padding:5px;
   display:flex;flex-direction:column;animation:menuIn .16s ease both}
@@ -234,25 +251,25 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 #empty .glyph{display:flex;align-items:flex-end;gap:4px;height:36px}
 #empty .glyph i{width:5px;border-radius:3px;background:var(--border-strong);
   animation:emptyWave 2.4s ease-in-out infinite}
+#empty .glyph i:nth-child(1){height:12px}
 #empty .glyph i:nth-child(2){height:22px;background:var(--accent-soft);animation-delay:.15s}
 #empty .glyph i:nth-child(3){height:34px;background:var(--accent);animation-delay:.3s}
 #empty .glyph i:nth-child(4){height:22px;background:var(--accent-soft);animation-delay:.45s}
-#empty .glyph i:nth-child(1){height:12px}
 #empty .glyph i:nth-child(5){height:12px;animation-delay:.6s}
 @keyframes emptyWave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.55)}}
-#empty h2{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
-  letter-spacing:-.01em;font-size:21px}
+#empty h2{font-family:Georgia,serif;font-weight:400;font-size:22px}
 #empty p{font-size:13px;line-height:1.65;color:var(--text2);max-width:340px}
 #empty .apps{font-size:11.5px;color:var(--muted)}
 #empty .apps b{color:var(--text2);font-weight:600}
 #dict-rail{width:258px;flex:none;display:flex;flex-direction:column;gap:14px;padding-top:56px}
 .rail-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
-  box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column}
+  box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column;
+  transition:transform .2s cubic-bezier(.2,.8,.3,1),box-shadow .2s}
+.rail-card:hover{transform:translateY(-2px);box-shadow:var(--sh-lift)}
 .rail-stat{display:flex;flex-direction:column;gap:2px;padding:12px 0;
   border-bottom:1px solid var(--divider)}
 .rail-stat:last-child{border-bottom:none;padding-bottom:2px}
-.rail-stat .v{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
-  letter-spacing:-.02em;font-size:25px;font-variant-numeric:tabular-nums}
+.rail-stat .v{font-family:Georgia,serif;font-size:27px;font-variant-numeric:tabular-nums}
 .rail-stat .l{font-size:11.5px;color:var(--text2)}
 .tip-card{background:var(--tint);border:1px solid var(--border);border-radius:14px;
   padding:13px 15px;font-size:11.5px;line-height:1.8;color:var(--text2)}
@@ -271,16 +288,21 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 #page-insights{overflow-y:auto}
 .ins-grid{display:flex;gap:14px;margin-top:18px;flex:none}
 .ins-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
-  box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column;gap:3px;flex:1}
+  box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column;gap:3px;flex:1;
+  position:relative;overflow:hidden;
+  transition:transform .2s cubic-bezier(.2,.8,.3,1),box-shadow .2s,border-color .2s}
+.ins-card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:0;transition:opacity .2s}
+.ins-card:hover{transform:translateY(-3px);box-shadow:var(--sh-lift);border-color:var(--accent-tint-b)}
+.ins-card:hover::before{opacity:1}
 .ins-card .k{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted)}
-.ins-card .v{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
-  letter-spacing:-.02em;font-size:30px;font-variant-numeric:tabular-nums}
-.ins-card .v small{font-size:14px;color:var(--text2);font-weight:600}
+.ins-card .v{font-family:Georgia,serif;font-size:34px;font-variant-numeric:tabular-nums}
+.ins-card .v small{font-size:15px;color:var(--text2);font-family:Georgia,serif}
 .ins-card .s{font-size:11px;color:var(--text2)}
-.gauge-track{stroke:var(--field)}
+.gauge-track{stroke:var(--tint)}
 .gauge-arc{stroke:var(--accent)}
 .gauge-txt{fill:var(--accent-text)}
-.mix-bar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--field)}
+.mix-bar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--tint)}
 .mix-legend{display:flex;gap:20px;font-size:11.5px;color:var(--text2)}
 .mix-legend .sw{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:6px}
 .heat-grid{display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;
@@ -288,15 +310,21 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 .heat-grid i{width:10px;height:10px;border-radius:3px}
 .heat-legend{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted)}
 .heat-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.app-row{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--text2)}
+.app-row .an{width:52px;flex:none;font-weight:600;color:var(--text)}
+.app-row .ab{flex:1;height:8px;border-radius:999px;background:var(--tint);overflow:hidden}
+.app-row .ab i{display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .5s cubic-bezier(.2,.8,.3,1)}
+.app-row .ac{width:30px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
 
-/* ===== dictionary ===== */
+/* ===== dictionary + snippets ===== */
 #page-dictionary{overflow-y:auto}
 .dic-wrap{max-width:734px;display:flex;flex-direction:column}
 .dic-hero{margin-top:18px;background:var(--accent-tint);border:1px solid var(--accent-tint-b);
   border-radius:14px;padding:18px 20px;display:flex;align-items:center;
   justify-content:space-between;gap:20px}
-.dic-hero .ht{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
-  letter-spacing:-.01em;font-size:17px}
+.dic-hero .ht{font-family:Georgia,serif;font-size:18px}
 .dic-hero .hs{font-size:12.5px;line-height:1.6;color:var(--text2);max-width:420px;margin-top:4px}
 .dic-list{margin-top:14px;background:var(--surface);border:1px solid var(--border);
   border-radius:14px;box-shadow:var(--sh-card);display:flex;flex-direction:column;overflow:hidden}
@@ -320,6 +348,28 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
   border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text);
   -webkit-user-select:text;user-select:text;transition:border-color .14s,box-shadow .14s}
 .dic-edit input::placeholder{color:var(--muted)}
+.snip-head{margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.snip-head .sh-t{font-family:Georgia,serif;font-size:18px}
+.snip-head .sh-s{font-size:11.5px;color:var(--muted);margin-top:2px}
+.snip-row{display:flex;align-items:center;gap:14px;min-height:50px;padding:8px 16px;
+  border-bottom:1px solid var(--divider);transition:background .12s}
+.snip-row:last-child{border-bottom:none}
+.snip-row:hover{background:var(--field)}
+.snip-row .st{flex:none;width:150px;font-size:12.5px;font-weight:600;
+  display:flex;align-items:center;gap:6px;-webkit-user-select:text;user-select:text}
+.snip-row .st i{font-style:normal;color:var(--gold);font-size:11px}
+.snip-row .sx{flex:1;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;-webkit-user-select:text;user-select:text}
+.snip-row .acts{display:none;gap:4px}
+.snip-row:hover .acts{display:flex}
+.snip-edit{display:flex;flex-direction:column;gap:8px;padding:12px 16px;
+  border-bottom:1px solid var(--divider);background:var(--field)}
+.snip-edit input,.snip-edit textarea{padding:7px 11px;background:var(--surface);
+  border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text);
+  -webkit-user-select:text;user-select:text}
+.snip-edit textarea{min-height:72px;resize:vertical;line-height:1.5}
+.snip-edit input::placeholder,.snip-edit textarea::placeholder{color:var(--muted)}
+.snip-edit .se-acts{display:flex;gap:8px;justify-content:flex-end}
 
 /* ===== settings ===== */
 #page-settings{overflow-y:auto}
@@ -385,7 +435,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
     <button class="nav-item" id="nav-settings" onclick="go('settings')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><line x1="6" y1="20" x2="6" y2="13"/><line x1="6" y1="9" x2="6" y2="4"/><line x1="12" y1="20" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="16"/><line x1="18" y1="12" x2="18" y2="4"/><line x1="3.5" y1="13" x2="8.5" y2="13"/><line x1="9.5" y1="8" x2="14.5" y2="8"/><line x1="15.5" y1="16" x2="20.5" y2="16"/></svg>Settings</button>
     <div class="profile">
-      <span class="av" id="prof-av">Y</span>
+      <span class="av" id="prof-av">D</span>
       <div><div class="pn" id="prof-name">You</div><div class="ps">Dialverse</div></div>
     </div>
   </div>
@@ -462,7 +512,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             <div class="rail-stat"><span class="v" style="color:var(--accent-text)" id="rs-streak">—</span><span class="l">day streak — keep it going</span></div>
           </div>
           <div class="tip-card">Select any text and press <b id="tip-cmdkey">F8</b> — then say <b>"make this formal"</b>, <b>"ترجمه للعربي"</b> or <b>"shorten it"</b>. It rewrites in place.</div>
-          <div class="tip-card">Try saying: <span style="color:var(--text)">"اكتب ايميل لأحمد عن الاجتماع bukra at ten"</span> — mixed sentences are fine.</div>
+          <div class="tip-card">Say a snippet's trigger on its own — like <b>"my address"</b> — and the full saved text pastes instantly. Manage snippets on the Dictionary page.</div>
         </div>
       </div>
     </div>
@@ -483,7 +533,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             <circle id="ins-gauge" class="gauge-arc" cx="32" cy="32" r="26" fill="none" stroke-width="7"
                     stroke-linecap="round" stroke-dasharray="0 164" transform="rotate(-90 32 32)"/>
             <text id="ins-gauge-t" class="gauge-txt" x="32" y="37" text-anchor="middle" font-size="13"
-                  font-weight="600"></text>
+                  font-family="Georgia,serif"></text>
           </svg>
         </div>
         <div class="ins-card"><span class="k">TOTAL WORDS</span><span class="v" id="ins-words">—</span><span class="s" id="ins-wps"></span></div>
@@ -514,21 +564,24 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
         <div style="width:225px;flex:none;display:flex;flex-direction:column;gap:14px">
           <div class="ins-card" style="justify-content:center">
             <span style="display:flex;align-items:baseline;gap:6px">
-              <span class="v" style="font-size:27px;color:var(--accent-text)" id="ins-streak">—</span>
-              <svg width="13" height="15" viewBox="0 0 24 24" fill="var(--accent)" style="align-self:center"><path d="M12 2c1.2 3.6-4 6-4 10.5a4.4 4.4 0 0 0 8.8 0c0-1.9-.9-3.3-1.9-4.4-.1 1.6-2.1 2.2-1.6.2.4-1.7.3-4.2-1.3-6.3z"/></svg>
+              <span class="v" style="font-size:30px;color:var(--accent-text)" id="ins-streak">—</span>
+              <svg width="13" height="15" viewBox="0 0 24 24" fill="var(--gold)" style="align-self:center"><path d="M12 2c1.2 3.6-4 6-4 10.5a4.4 4.4 0 0 0 8.8 0c0-1.9-.9-3.3-1.9-4.4-.1 1.6-2.1 2.2-1.6.2.4-1.7.3-4.2-1.3-6.3z"/></svg>
             </span>
             <span class="s">current streak, days</span>
           </div>
           <div class="ins-card" style="justify-content:center">
-            <span class="v" style="font-size:27px" id="ins-longest">—</span>
+            <span class="v" style="font-size:30px" id="ins-longest">—</span>
             <span class="s">longest streak, days</span>
           </div>
-          <div class="tip-card" style="font-size:11px;line-height:1.7">From your data only: timestamp, words, duration, language, Flow flag.</div>
+          <div class="ins-card" style="gap:8px" id="app-card">
+            <span class="k">WHERE YOU DICTATE</span>
+            <div id="app-bars" style="display:flex;flex-direction:column;gap:7px"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- DICTIONARY -->
+    <!-- DICTIONARY + SNIPPETS -->
     <div class="page" id="page-dictionary">
       <div class="dic-wrap">
         <div class="page-date" id="dic-count">0 entries</div>
@@ -549,6 +602,16 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
           <span style="font-size:11px;color:var(--muted)">applies in both languages</span>
         </div>
         <div class="dic-list" id="dic-list"></div>
+
+        <div class="snip-head">
+          <div>
+            <div class="sh-t">Snippets</div>
+            <div class="sh-s">say a trigger on its own — the full template pastes instantly</div>
+          </div>
+          <button class="btn-2nd" onclick="snipAdd()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add snippet</button>
+        </div>
+        <div class="dic-list" id="snip-list" style="margin-top:12px;margin-bottom:20px"></div>
       </div>
     </div>
 
@@ -573,8 +636,15 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
           </div>
           <div class="set-row"><span class="sl">Language key</span><select id="sel-langkey"></select></div>
         </div>
-        <div class="section-label" style="margin-top:16px">FLOW AI</div>
+        <div class="section-label" style="margin-top:16px">OUTPUT</div>
         <div class="set-card">
+          <div class="set-row">
+            <div><div class="sl">Insertion method</div><div class="ss">"Type it out" helps in apps that block pasting (terminals, some CRMs)</div></div>
+            <select id="sel-paste">
+              <option value="paste">Paste instantly (Ctrl+V)</option>
+              <option value="type">Type it out</option>
+            </select>
+          </div>
           <div class="set-row">
             <div><div class="sl">Adapt to the app you're in</div><div class="ss">emails get clean paragraphs, chats stay casual, code stays plain</div></div>
             <div class="switch" id="appaware-switch" role="switch" tabindex="0" onclick="toggleAppAware()"
@@ -651,6 +721,7 @@ function api(method, ...args){
     return window.pywebview.api[method](...args);
   return Promise.resolve(null);
 }
+function ok(){ return HISTORY.filter(e => !e.failed); }
 
 /* ---------- theme ---------- */
 function isDark(){
@@ -702,7 +773,7 @@ window.app = {
     else if (cmd) inner = `<span class="dot"></span><span>Command — listening</span><span class="timer" id="spill-timer">0:00</span>`;
     else if (st === 'recording') inner = `<span class="dot"></span><span>Recording</span><span class="timer" id="spill-timer">0:00</span>`;
     else if (st === 'transcribing') inner = `<span class="spin"></span><span>Transcribing…</span>`;
-    else if (st === 'cleaning') inner = `<span style="font-size:11px">✦</span><span>Cleaning…</span>`;
+    else if (st === 'cleaning') inner = `<span style="font-size:11px">✦</span><span>Polishing…</span>`;
     else if (st === 'error') inner = `<span style="font-size:10px">✕</span><span>${esc(detail || 'Error')}</span>`;
     p.innerHTML = inner;
     if (st === 'idle' && detail) p.innerHTML = `<span class="dot"></span><span>${esc(detail)}</span>`;
@@ -754,7 +825,7 @@ function fmtTime(ts){
 }
 function renderFeed(){
   const q = $('search').value.trim().toLowerCase();
-  const entries = HISTORY.filter(e => !q || e.text.toLowerCase().includes(q)).slice(-80).reverse();
+  const entries = HISTORY.filter(e => !q || (e.text || '').toLowerCase().includes(q)).slice(-80).reverse();
   $('empty').classList.toggle('on', entries.length === 0 && !q);
   $('feed').style.display = (entries.length === 0 && !q) ? 'none' : 'block';
   const feed = $('feed');
@@ -768,8 +839,42 @@ function renderFeed(){
       lab.className = 'day-label'; lab.textContent = dl;
       feed.appendChild(lab);
     }
-    feed.appendChild(buildRow(e));
+    feed.appendChild(e.failed ? buildFailedRow(e) : buildRow(e));
   }
+}
+function buildFailedRow(e){
+  const row = document.createElement('div');
+  row.className = 'row failed';
+  row.innerHTML = `<span class="t">${fmtTime(e.ts)}</span>` +
+    `<div class="fail-t"><b>✕ Transcription failed</b> — ${esc(e.failed)}` +
+    `<div class="fs">${e.audio ? 'Your take is saved — retry without re-recording.' : 'The recording could not be saved.'}</div></div>`;
+  const acts = document.createElement('span');
+  acts.className = 'acts';
+  if (e.audio){
+    const retry = document.createElement('button');
+    retry.className = 'btn-2nd'; retry.style.height = '26px'; retry.style.fontSize = '11px';
+    retry.textContent = 'Retry';
+    retry.onclick = ev => { ev.stopPropagation(); retry.disabled = true;
+      retry.textContent = 'Retrying…';
+      api('retry_entry', e.ts).then(started => {
+        // engine busy (or bridge missing) — restore the button; on a real
+        // retry the row is re-rendered by updateEntry either way
+        if (!started){ retry.disabled = false; retry.textContent = 'Retry'; }
+      }); };
+    acts.appendChild(retry);
+  }
+  const del = document.createElement('button');
+  del.className = 'dots-btn';
+  del.title = 'Delete';
+  del.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>';
+  del.onclick = ev => { ev.stopPropagation();
+    api('delete_entry', e.ts).then(() => {
+      HISTORY = HISTORY.filter(x => x.ts !== e.ts);
+      renderFeed(); renderRail();
+    }); };
+  acts.appendChild(del);
+  row.appendChild(acts);
+  return row;
 }
 function buildRow(e){
   const row = document.createElement('div');
@@ -783,6 +888,10 @@ function buildRow(e){
     const b = document.createElement('span');
     b.className = 'badge'; b.innerHTML = '<i>✎</i>edit';
     b.title = e.cmd;
+    acts.appendChild(b);
+  } else if (e.snippet){
+    const b = document.createElement('span');
+    b.className = 'badge gold'; b.innerHTML = '<i>⚡</i>snippet';
     acts.appendChild(b);
   } else if (e.cleaned) acts.innerHTML = '<span class="badge"><i>✦</i>flow</span>';
   const hov = document.createElement('span');
@@ -852,7 +961,7 @@ function exportHistory(){ api('export_history'); }
 
 /* ---------- stats rail ---------- */
 function streaks(){
-  const days = new Set(HISTORY.map(e => new Date(e.ts * 1000).toDateString()));
+  const days = new Set(ok().map(e => new Date(e.ts * 1000).toDateString()));
   let cur = 0;
   for (let i = 0; ; i++){
     const d = new Date(); d.setDate(d.getDate() - i);
@@ -871,29 +980,32 @@ function streaks(){
   return {cur, longest};
 }
 function renderRail(){
-  const words = HISTORY.reduce((a,e) => a + e.words, 0);
-  const secs = HISTORY.reduce((a,e) => a + (e.secs || 0), 0);
+  const h = ok();
+  const words = h.reduce((a,e) => a + e.words, 0);
+  const secs = h.reduce((a,e) => a + (e.secs || 0), 0);
   const wpm = secs > 2 ? Math.round(words / (secs / 60)) : 0;
   $('rs-words').textContent = words ? words.toLocaleString() : '—';
-  $('rs-wpm').innerHTML = wpm ? `${wpm} <span style="font-size:13px;color:var(--text2)">WPM</span>` : '—';
-  $('rs-streak').textContent = HISTORY.length ? streaks().cur : '—';
+  $('rs-wpm').innerHTML = wpm ? `${wpm} <span style="font-size:14px;color:var(--text2)">WPM</span>` : '—';
+  $('rs-streak').textContent = h.length ? streaks().cur : '—';
 }
 
 /* ---------- insights ---------- */
 function heatRamp(){
   return isDark()
-    ? ['#232329','#332C52','#4A3D85','#6C55E8','#9C8AF4']
-    : ['#EEEEF1','#E0D8FA','#C3B3F4','#9C82EC','#6C55E8'];
+    ? ['#252030','#352C55','#4C3F82','#7561CE','#9C86F6']
+    : ['#EFE9DB','#E3DBF8','#C6B5F3','#9C82EC','#6C55E8'];
 }
+const APP_LABELS = {email:'Email', chat:'Chat', docs:'Docs', code:'Code', general:'Other'};
 function renderInsights(){
-  const n = HISTORY.length;
-  const words = HISTORY.reduce((a,e) => a + e.words, 0);
-  const secs = HISTORY.reduce((a,e) => a + (e.secs || 0), 0);
+  const h = ok();
+  const n = h.length;
+  const words = h.reduce((a,e) => a + e.words, 0);
+  const secs = h.reduce((a,e) => a + (e.secs || 0), 0);
   const wpm = secs > 2 ? Math.round(words / (secs / 60)) : 0;
-  const fixes = HISTORY.filter(e => e.cleaned).length;
-  const days = new Set(HISTORY.map(e => new Date(e.ts * 1000).toDateString()));
+  const fixes = h.filter(e => e.cleaned).length;
+  const days = new Set(h.map(e => new Date(e.ts * 1000).toDateString()));
   if (n){
-    const first = new Date(HISTORY[0].ts * 1000);
+    const first = new Date(h[0].ts * 1000);
     $('ins-since').textContent = 'Since ' + first.toLocaleDateString('en-US', {month:'long', year:'numeric'});
   } else $('ins-since').textContent = 'Your dictation, in numbers';
   $('ins-wpm').innerHTML = wpm ? `${wpm}<small> WPM</small>` : '—';
@@ -909,7 +1021,7 @@ function renderInsights(){
   $('ins-streak').textContent = st.cur;
   $('ins-longest').textContent = st.longest;
   // language mix — script-detected per entry, so "Auto" dictations count right
-  const arW = HISTORY.filter(e => AR_RE.test(e.text)).reduce((a,e) => a + e.words, 0);
+  const arW = h.filter(e => AR_RE.test(e.text)).reduce((a,e) => a + e.words, 0);
   const enW = words - arW;
   const arP = words ? Math.round(arW / words * 100) : 50;
   $('mix-bar').innerHTML = `<span style="width:${arP}%;background:var(--accent)"></span>` +
@@ -917,13 +1029,25 @@ function renderInsights(){
   $('mix-legend').innerHTML =
     `<span><span class="sw" style="background:var(--accent)"></span>عربي · ${arP}% — ${arW.toLocaleString()} words</span>` +
     `<span><span class="sw" style="background:var(--border-strong)"></span>English · ${100-arP}% — ${enW.toLocaleString()} words</span>`;
+  // where you dictate
+  const byApp = {};
+  h.forEach(e => { const k = APP_LABELS[e.app] ? e.app : 'general';
+    byApp[k] = (byApp[k] || 0) + 1; });
+  const apps = Object.entries(byApp).sort((a,b) => b[1] - a[1]);
+  const max = apps.length ? apps[0][1] : 1;
+  $('app-bars').innerHTML = apps.length
+    ? apps.map(([k, c]) =>
+        `<div class="app-row"><span class="an">${APP_LABELS[k]}</span>` +
+        `<span class="ab"><i style="width:${Math.round(c / max * 100)}%"></i></span>` +
+        `<span class="ac">${c}</span></div>`).join('')
+    : '<span style="font-size:11px;color:var(--muted)">No dictations yet.</span>';
   renderHeatmap();
 }
 function renderHeatmap(){
   const RAMP = heatRamp();
   $('heat-legend').querySelectorAll('i').forEach((el, i) => el.style.background = RAMP[i]);
   const counts = {};
-  for (const e of HISTORY){
+  for (const e of ok()){
     const k = new Date(e.ts * 1000).toDateString();
     counts[k] = (counts[k] || 0) + 1;
   }
@@ -981,7 +1105,7 @@ function renderDictionary(){
   const pairs = dicPairs();
   const q = ($('dic-search').value || '').trim().toLowerCase();
   const shown = pairs.filter(p => !q || p.w.toLowerCase().includes(q) || p.r.toLowerCase().includes(q));
-  $('dic-count').textContent = `${pairs.length} entr${pairs.length === 1 ? 'y' : 'ies'}`;
+  $('dic-count').textContent = `${pairs.length} entr${pairs.length === 1 ? 'y' : 'ies'} · ${snips().length} snippet${snips().length === 1 ? '' : 's'}`;
   const list = $('dic-list');
   list.innerHTML = '';
   const arrow = flip => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${flip ? ' style="transform:scaleX(-1)"' : ''}><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg>`;
@@ -1018,12 +1142,20 @@ function dicEditor(w, r, onDone){
   ed.className = 'dic-edit';
   const iw = document.createElement('input'); iw.placeholder = 'heard as… (e.g. dialverse)'; iw.value = w; iw.spellcheck = false;
   const ir = document.createElement('input'); ir.placeholder = 'write as… (e.g. Dialverse)'; ir.value = r; ir.spellcheck = false;
-  const ok = document.createElement('button'); ok.className = 'btn-primary'; ok.style.height = '30px'; ok.textContent = 'Save';
-  ok.onclick = () => { if (iw.value.trim() && ir.value.trim()) onDone(iw.value.trim(), ir.value.trim()); };
+  const okb = document.createElement('button'); okb.className = 'btn-primary'; okb.style.height = '30px'; okb.textContent = 'Save';
+  okb.onclick = () => {
+    // '=' is the storage delimiter — a stray one would shift everything
+    // after it into the replacement on the next parse
+    if (iw.value.includes('=') || ir.value.includes('=')){
+      iw.classList.add('bad'); iw.style.borderColor = 'var(--rec)'; ir.style.borderColor = 'var(--rec)';
+      return;
+    }
+    if (iw.value.trim() && ir.value.trim()) onDone(iw.value.trim(), ir.value.trim());
+  };
   const cancel = document.createElement('button'); cancel.className = 'btn-ghost'; cancel.style.height = '30px'; cancel.textContent = 'Cancel';
   cancel.onclick = () => renderDictionary();
-  [iw, ir].forEach(inp => inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') ok.click(); }));
-  ed.appendChild(iw); ed.appendChild(ir); ed.appendChild(ok); ed.appendChild(cancel);
+  [iw, ir].forEach(inp => inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') okb.click(); }));
+  ed.appendChild(iw); ed.appendChild(ir); ed.appendChild(okb); ed.appendChild(cancel);
   return ed;
 }
 function dicAdd(){
@@ -1044,6 +1176,75 @@ function dicEdit(row, idx){
 }
 $('dic-search').addEventListener('input', renderDictionary);
 
+/* ---------- snippets ---------- */
+function snips(){ return Array.isArray(S.snippets) ? S.snippets : []; }
+function snipSave(list){
+  S.snippets = list;
+  api('set_setting', 'snippets', list);
+  renderSnippets(); renderDictionary();
+}
+function snipEditor(t, x, onDone){
+  const ed = document.createElement('div');
+  ed.className = 'snip-edit';
+  const it = document.createElement('input');
+  it.placeholder = 'trigger — what you\'ll say (e.g. my address)'; it.value = t; it.spellcheck = false;
+  const ix = document.createElement('textarea');
+  ix.placeholder = 'template — what gets pasted'; ix.value = x; ix.spellcheck = false;
+  const acts = document.createElement('div'); acts.className = 'se-acts';
+  const cancel = document.createElement('button'); cancel.className = 'btn-ghost'; cancel.style.height = '30px'; cancel.textContent = 'Cancel';
+  cancel.onclick = () => renderSnippets();
+  const okb = document.createElement('button'); okb.className = 'btn-primary'; okb.style.height = '30px'; okb.textContent = 'Save';
+  okb.onclick = () => { if (it.value.trim() && ix.value.trim()) onDone(it.value.trim(), ix.value); };
+  acts.appendChild(cancel); acts.appendChild(okb);
+  ed.appendChild(it); ed.appendChild(ix); ed.appendChild(acts);
+  return ed;
+}
+function renderSnippets(){
+  const list = $('snip-list');
+  list.innerHTML = '';
+  const items = snips();
+  if (!items.length){
+    const d = document.createElement('div');
+    d.style.cssText = 'padding:22px 16px;font-size:12.5px;color:var(--muted);text-align:center';
+    d.textContent = 'No snippets yet — save your address, signature or canned replies.';
+    list.appendChild(d);
+    return;
+  }
+  items.forEach((s, idx) => {
+    const row = document.createElement('div');
+    row.className = 'snip-row';
+    row.innerHTML = `<span class="st"><i>⚡</i>${esc(s.t)}</span>` +
+                    `<span class="sx">${esc((s.x || '').replace(/\n/g, ' · '))}</span>`;
+    const acts = document.createElement('span');
+    acts.className = 'acts';
+    const edit = document.createElement('button');
+    edit.className = 'icon-btn';
+    edit.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5z"/></svg>';
+    edit.onclick = () => {
+      const ed = snipEditor(s.t, s.x, (t, x) => {
+        const l = snips().slice(); l[idx] = {t, x}; snipSave(l);
+      });
+      row.replaceWith(ed);
+      ed.querySelector('input').focus();
+    };
+    const del = document.createElement('button');
+    del.className = 'icon-btn danger';
+    del.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>';
+    del.onclick = () => { const l = snips().slice(); l.splice(idx, 1); snipSave(l); };
+    acts.appendChild(edit); acts.appendChild(del);
+    row.appendChild(acts);
+    list.appendChild(row);
+  });
+}
+function snipAdd(){
+  go('dictionary');
+  const list = $('snip-list');
+  if (list.firstChild && list.firstChild.className === 'snip-edit') return;
+  const ed = snipEditor('', '', (t, x) => { const l = snips().slice(); l.unshift({t, x}); snipSave(l); });
+  list.insertBefore(ed, list.firstChild);
+  ed.querySelector('input').focus();
+}
+
 /* ---------- nav / controls ---------- */
 function go(page){
   closeMenus();
@@ -1052,7 +1253,7 @@ function go(page){
     $('page-' + p).classList.toggle('on', p === page);
   }
   if (page === 'insights') renderInsights();
-  if (page === 'dictionary') renderDictionary();
+  if (page === 'dictionary'){ renderDictionary(); renderSnippets(); }
 }
 function segSet(id, val){
   for (const b of $(id).children) b.classList.toggle('on', b.dataset.v === val);
@@ -1152,6 +1353,7 @@ $('key-input').addEventListener('keydown', ev => { if (ev.key === 'Enter') saveK
 
 /* ---------- boot ---------- */
 function boot(init){
+  window.__booted = true;
   S = init.settings;
   HISTORY = init.history || [];
   applyTheme();
@@ -1160,7 +1362,7 @@ function boot(init){
   const name = init.user || '';
   $('greeting').textContent = HISTORY.length ? `Welcome back${name ? ', ' + name : ''}` : `Welcome${name ? ', ' + name : ''}`;
   $('prof-name').textContent = name || 'You';
-  $('prof-av').textContent = (name || 'Y')[0].toUpperCase();
+  $('prof-av').textContent = (name || 'D')[0].toUpperCase();
   $('today-date').textContent = new Date().toLocaleDateString('en-US',
     {weekday:'long', month:'long', day:'numeric'});
   segSet('seg-lang', S.language || 'auto');
@@ -1181,6 +1383,8 @@ function boot(init){
   fillSelect('sel-langkey', LANG_KEYS, S.lang_key, v => { setSetting('lang_key', v); renderHints(); });
   fillSelect('sel-mic', init.devices, S.mic_device || 'System default',
              v => setSetting('mic_device', v === 'System default' ? '' : v));
+  $('sel-paste').value = S.paste_mode || 'paste';
+  $('sel-paste').onchange = () => setSetting('paste_mode', $('sel-paste').value);
   $('sel-theme').value = S.theme || 'system';
   $('sel-theme').onchange = () => { setSetting('theme', $('sel-theme').value); applyTheme(); };
   if (init.version)
@@ -1190,6 +1394,8 @@ function boot(init){
   window.app.setState('idle', '');
 }
 window.addEventListener('pywebviewready', () => {
+  if (window.__demo){ location.reload(); return; }  // demo raced a slow
+  // WebView2 start — reload runs this handler again with pywebview live
   api('get_init').then(init => {
     S = init.settings || {};
     applyTheme();
@@ -1198,9 +1404,38 @@ window.addEventListener('pywebviewready', () => {
       $('side-logo').src = 'data:image/png;base64,' + init.logo;
     }
     if (init.key_set) boot(init);
-    else $('setup').classList.add('active');
+    else { $('main').classList.remove('active'); $('setup').classList.add('active'); }
   });
 });
+/* Design-preview fallback: outside pywebview (a browser, Open Design) boot
+   with demo data so every state is visible and styleable. 1500ms leaves a
+   cold WebView2 start room to fire pywebviewready first. */
+setTimeout(() => {
+  if (window.pywebview || window.__booted) return;
+  window.__demo = true;
+  const now = Date.now() / 1000;
+  boot({
+    user: 'Mazen', version: '3.1.0', devices: ['System default'],
+    settings: {flow_mode: true, rec_mode: 'toggle', record_key: 'f9',
+      lang_key: 'f10', command_key: 'f8', chime_on: true, chime_volume: 40,
+      mic_device: '', dictionary: 'dialverse = Dialverse', language: 'auto',
+      tone: 'auto', app_aware: true, paste_mode: 'paste', theme: 'system',
+      autostart: false, idle_pill: true, audio_enhance: true,
+      snippets: [{t: 'my address', x: 'Dialverse HQ\n12 Nile St, Cairo'}]},
+    history: [
+      {ts: now - 86400 * 2, lang: 'ar', words: 14, secs: 9, cleaned: true, raw: 'x',
+       text: 'اتفقنا مع Jake على الـ onboarding يوم الخميس، وابعتله الـ contract قبلها.', app: 'chat', audio: 'a'},
+      {ts: now - 86400, lang: 'en', words: 22, secs: 12, cleaned: true, raw: 'x',
+       text: '1. Fix the login page.\n2. Update the email templates.\n3. Redesign the dashboard.', app: 'docs', audio: 'a'},
+      {ts: now - 7200, lang: 'en', words: 8, secs: 4, cleaned: false,
+       text: 'Dialverse HQ · 12 Nile St, Cairo', snippet: true, app: 'email', audio: 'a'},
+      {ts: now - 3600, lang: 'en', words: 12, secs: 7, cleaned: true, raw: 'x',
+       text: 'Sounds good — send the revised quote and loop in Sam.', app: 'email', cmd: 'make this formal', audio: 'a'},
+      {ts: now - 600, lang: 'en', words: 0, secs: 21, cleaned: false, text: '',
+       failed: 'Network error — check connection', audio: 'a'}
+    ]
+  });
+}, 1500);
 </script>
 </body>
 </html>
