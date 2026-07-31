@@ -817,7 +817,7 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.05)}
         <div class="snip-head">
           <div>
             <div class="sh-t">Snippets</div>
-            <div class="sh-s">say a trigger on its own — the full template pastes instantly</div>
+            <div class="sh-s">say a trigger on its own to paste the template — or put <b>{}</b> in it and everything you say after the trigger drops into that spot</div>
           </div>
           <button class="btn-2nd" onclick="snipAdd()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add snippet</button>
@@ -845,6 +845,14 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.05)}
             <div><div class="sl">Command key</div><div class="ss">select text, press it, speak an edit — "make this formal"</div>
               <div class="ss" id="cmdkey-warn" style="display:none;color:var(--rec-text);font-weight:600">Same as the record key — command mode is off until you change one.</div></div>
             <select id="sel-cmdkey"></select>
+          </div>
+          <div class="set-row">
+            <div><div class="sl">Refine key</div><div class="ss">speak a change to the last thing you dictated — "make it shorter", "drop point three"</div></div>
+            <select id="sel-refinekey"></select>
+          </div>
+          <div class="set-row">
+            <div><div class="sl">Raw take</div><div class="ss">hold <b>Shift</b> when you start recording for one take with Flow off — exactly as spoken</div></div>
+            <span style="font-size:11.5px;color:var(--muted)">always on</span>
           </div>
           <div class="set-row"><span class="sl">Language key</span><select id="sel-langkey"></select></div>
         </div>
@@ -927,6 +935,7 @@ const $ = id => document.getElementById(id);
 const REC_KEYS = ['f2','f4','f6','f8','f9','pause'];
 const LANG_KEYS = ['f7','f10','f11','f12'];
 const CMD_KEYS = ['f3','f6','f8'];
+const REFINE_KEYS = ['f4','f5','f6'];
 const AR_RE = /[؀-ۿ]/;
 /* badge glyphs — inline SVG so they never fall back to an emoji font */
 const BADGE_ICON = {
@@ -1460,7 +1469,8 @@ function snipEditor(t, x, onDone){
   const it = document.createElement('input');
   it.placeholder = 'trigger — what you\'ll say (e.g. my address)'; it.value = t; it.spellcheck = false;
   const ix = document.createElement('textarea');
-  ix.placeholder = 'template — what gets pasted'; ix.value = x; ix.spellcheck = false;
+  ix.placeholder = 'template — what gets pasted. Use {} where your dictation should go.';
+  ix.value = x; ix.spellcheck = false;
   const acts = document.createElement('div'); acts.className = 'se-acts';
   const cancel = document.createElement('button'); cancel.className = 'btn-ghost'; cancel.style.height = '30px'; cancel.textContent = 'Cancel';
   cancel.onclick = () => renderSnippets();
@@ -1577,9 +1587,11 @@ function renderHints(){
   const rk = (S.record_key || 'f9').toUpperCase();
   const lk = (S.lang_key || 'f10').toUpperCase();
   const ck = (S.command_key || 'f8').toUpperCase();
+  const fk = (S.refine_key || 'f4').toUpperCase();
   $('hints').innerHTML = `<kbd>${rk}</kbd>${S.rec_mode === 'hold' ? 'hold' : 'record'}` +
                          `<kbd style="margin-left:5px">${ck}</kbd>edit` +
-                         `<kbd style="margin-left:5px">${lk}</kbd>language`;
+                         `<kbd style="margin-left:5px">${fk}</kbd>refine` +
+                         `<kbd style="margin-left:5px">${lk}</kbd>lang`;
   $('empty-key').textContent = rk;
   $('mode-sub').textContent = `how ${rk} behaves`;
   $('tip-cmdkey').textContent = ck;
@@ -1651,6 +1663,7 @@ function boot(init){
   $('vol-val').textContent = $('vol').value + '%';
   fillSelect('sel-reckey', REC_KEYS, S.record_key, v => { setSetting('record_key', v); renderHints(); });
   fillSelect('sel-cmdkey', CMD_KEYS, S.command_key || 'f8', v => { setSetting('command_key', v); renderHints(); });
+  fillSelect('sel-refinekey', REFINE_KEYS, S.refine_key || 'f4', v => { setSetting('refine_key', v); renderHints(); });
   fillSelect('sel-langkey', LANG_KEYS, S.lang_key, v => { setSetting('lang_key', v); renderHints(); });
   fillSelect('sel-mic', init.devices, S.mic_device || 'System default',
              v => setSetting('mic_device', v === 'System default' ? '' : v));

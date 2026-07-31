@@ -58,7 +58,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.6.0"
+APP_VERSION = "3.7.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 HOVER_W, HOVER_H = 190, 44  # hovered: status text + cancel / open controls
@@ -102,6 +102,7 @@ DEFAULT_SETTINGS = {
     "record_key": "f9",
     "lang_key": "f10",
     "command_key": "f8",
+    "refine_key": "f4",
     "chime_on": True,
     "chime_volume": 40,
     "mic_device": "",
@@ -754,15 +755,34 @@ def _apply_dictionary(text, pairs):
 
 
 def _match_snippet(text, snippets):
-    """Say just a snippet's trigger, get its template pasted. Exact match,
-    forgiving about case, whitespace and trailing punctuation."""
-    norm = re.sub(r"\s+", " ", text).strip().strip(".!?,،؟ ").lower()
-    if not norm:
+    """Say a snippet's trigger and get its text.
+
+    Two shapes:
+      exact match            -> paste the whole template
+      trigger + more speech  -> if the template contains {}, the rest of the
+                                dictation is substituted in. That turns a
+                                snippet into a reusable PROMPT FRAMING:
+                                "code review framing <what you want reviewed>"
+    Returns (text, consumed_rest) or None.
+    """
+    def norm(s):
+        return re.sub(r"\s+", " ", s).strip().strip(".!?,،؟ ").lower()
+
+    n = norm(text)
+    if not n:
         return None
     for s in snippets or []:
-        trig = (s.get("t") or "").strip().lower()
-        if trig and norm == trig:
-            return s.get("x") or None
+        trig = norm(s.get("t") or "")
+        body = s.get("x") or ""
+        if not trig or not body:
+            continue
+        if n == trig:
+            # a framing with no content yet: leave the placeholder visible
+            return body.replace("{}", "").strip() if "{}" in body else body
+        if "{}" in body and n.startswith(trig + " "):
+            rest = text.strip()[len(trig):].lstrip(" ,،:-").strip()
+            if rest:
+                return body.replace("{}", rest)
     return None
 
 
@@ -770,13 +790,15 @@ class Engine:
     """Recording + transcription + optional AI cleanup. UI-agnostic."""
 
     def __init__(self, api_key, settings, on_state, on_transcript, on_language,
-                 on_cancelled_take=None):
+                 on_cancelled_take=None, on_last_text=None):
         self.api_key = api_key
         self.settings = settings
         self.on_state = on_state
         self.on_transcript = on_transcript
         self.on_language = on_language
         self.on_cancelled_take = on_cancelled_take or (lambda audio: None)
+        self.on_last_text = on_last_text or (lambda: "")
+        self._raw_once = False
         self.language = settings.get("language", "auto")
         self.recording = False
         self.frames = queue.Queue()
@@ -903,7 +925,34 @@ class Engine:
         if self.recording:
             self.stop_recording()
         else:
+            # Hold Shift while starting for ONE raw take: no Flow, no tone,
+            # exactly as spoken. For the chat message that a numbered list
+            # would ruin, without a trip into Settings.
+            try:
+                self._raw_once = keyboard.is_pressed("shift")
+            except Exception:
+                self._raw_once = False
             self.start_recording()
+
+    def start_refine(self):
+        """Speak a correction that is applied to the LAST thing pasted —
+        'make it shorter', 'drop point three', 'اعملها رسمية'. Command mode
+        needs you to select text first; this reaches for what you just
+        dictated, which is usually what you want to iterate on."""
+        if self.recording:
+            self.stop_recording()
+            return
+        if not self.on_last_text():
+            self.on_state("error", "Nothing to refine yet")
+            return
+        self.mode = "refine"
+        self.start_recording()
+
+    def toggle_refine(self):
+        if self.recording:
+            self.stop_recording()
+        else:
+            self.start_refine()
 
     def _start_inner(self):
         with self.lock:
@@ -986,6 +1035,7 @@ class Engine:
             while not self.frames.empty():
                 chunks.append(self.frames.get())
             mode, self.mode = self.mode, "dictate"
+            raw_once, self._raw_once = self._raw_once, False
             if not chunks or elapsed < 0.3:
                 self.on_state("idle", "Too short — ignored")
                 return
@@ -1006,9 +1056,12 @@ class Engine:
             if mode == "command":
                 self._spawn(self._command_transcribe, audio, elapsed,
                             self.language, self._cmd_selection)
+            elif mode == "refine":
+                self._spawn(self._command_transcribe, audio, elapsed,
+                            self.language, self.on_last_text(), True)
             else:
                 self._spawn(self._transcribe, audio, elapsed, self.language,
-                            self._app_ctx)
+                            self._app_ctx, raw_once)
 
     def _spawn(self, fn, *args):
         """Run a worker with a top-level guard. An unguarded raise killed the
@@ -1153,7 +1206,8 @@ class Engine:
                 time.sleep(0.15)  # let the clipboard write commit first
                 _send_paste()
 
-    def _transcribe(self, audio, duration, lang, app_ctx="general"):
+    def _transcribe(self, audio, duration, lang, app_ctx="general",
+                    raw_once=False):
         t0 = time.time()
         gen = self._gen
         buf = io.BytesIO()
@@ -1184,7 +1238,8 @@ class Engine:
             self._worker_state("idle", "Nothing recognized")
             return
 
-        snippet = _match_snippet(text, self.settings.get("snippets"))
+        snippet = None if raw_once else _match_snippet(
+            text, self.settings.get("snippets"))
         if snippet is not None:
             self._insert_text(snippet)
             entry = {
@@ -1200,7 +1255,9 @@ class Engine:
 
         raw_text = text
         cleaned = False
-        if self.settings.get("flow_mode", True):
+        if raw_once:
+            logging.info("raw take (shift held) — Flow skipped")
+        elif self.settings.get("flow_mode", True):
             self._worker_state("cleaning", "")
             out = self._flow_clean(text, app_ctx)
             if out:
@@ -1303,7 +1360,8 @@ class Engine:
     def stop_command(self):
         self.stop_recording()
 
-    def _command_transcribe(self, audio, duration, lang, selection):
+    def _command_transcribe(self, audio, duration, lang, selection,
+                            refine=False):
         t0 = time.time()
         gen = self._gen
         # command takes were the one path that never hit disk — a failed or
@@ -1347,6 +1405,7 @@ class Engine:
             "raw": selection,     # "Undo AI edit" restores the original
             "cmd": instruction,   # shown as the edit badge tooltip
             "audio": audio_name,
+            "refine": refine,
         }
         self.on_transcript(entry)
         self._worker_state("idle", "")
@@ -1676,7 +1735,8 @@ class DialFlow:
     def set_setting(self, key, value):
         self.settings[key] = value
         self.settings.save()
-        if key in ("rec_mode", "record_key", "lang_key", "command_key"):
+        if key in ("rec_mode", "record_key", "lang_key", "command_key",
+                   "refine_key"):
             self._bind_hotkeys()
             if key == "record_key":
                 self._js(self.pill_win, f"app.reckey({json.dumps(value)})")
@@ -2032,6 +2092,14 @@ class DialFlow:
 
     # ---------- engine wiring ----------
 
+    def _last_text(self):
+        """Most recent thing actually pasted — what refine acts on."""
+        with self._hist_lock:
+            for e in reversed(self.history):
+                if e.get("text") and not e.get("failed"):
+                    return e["text"]
+        return ""
+
     def _keep_cancelled_take(self, audio):
         """A cancelled recording is still saved and listed, so 'cancel' can
         never be the click that destroys minutes of speech."""
@@ -2052,7 +2120,7 @@ class DialFlow:
     def _boot_engine(self, key):
         self.engine = Engine(key, self.settings, self._on_state,
                              self._on_transcript, self._on_language,
-                             self._keep_cancelled_take)
+                             self._keep_cancelled_take, self._last_text)
         self._bind_hotkeys()
         threading.Thread(target=self._level_pusher, daemon=True).start()
         threading.Thread(target=self._pill_follower, daemon=True).start()
@@ -2065,6 +2133,10 @@ class DialFlow:
         rk = self.settings["record_key"]
         lk = self.settings["lang_key"]
         ck = self.settings.get("command_key", "f8")
+        fk = self.settings.get("refine_key", "f4")
+        if fk and fk not in (rk, ck, lk):
+            keyboard.add_hotkey(fk, self._debounced(self.engine.toggle_refine),
+                                suppress=False)
         if self.settings["rec_mode"] == "hold":
             keyboard.on_press_key(rk, lambda e: self.engine.start_recording(),
                                   suppress=False)
@@ -2451,9 +2523,7 @@ class DialFlow:
             end = (VPILL_W, VPILL_H) if vert else (PILL_W, PILL_H)
         else:
             end = (VMINI_W, VMINI_H) if vert else (MINI_W, MINI_H)
-        # tell the pill which way to lay itself out before it resizes
-        self._js(self.pill_win, "app.vert(%s)" % (
-            "true" if (vert and expand in (True, False, None)) else "false"))
+        want_vert = vert and expand in (True, False, None)
         # bump the token only once we know we will actually animate: bumping
         # before the early-outs below cancelled a running animation and left
         # _pill_animating stuck True, which froze the follower and every
@@ -2469,6 +2539,11 @@ class DialFlow:
         if anchor is None or self.pill_win is None:
             self._pill_wh = end
             return
+        # An orientation flip (upright bar -> wide hover bar) has no sensible
+        # in-between shape: tweening 38x150 to 190x44 sweeps through squares
+        # and the content reflows every frame. That is the "glitching out"
+        # when moving to a side-docked bubble. Cross-orientation changes snap.
+        flip = (start[1] > start[0]) != (end[1] > end[0])
         self._anim_token = getattr(self, "_anim_token", 0) + 1
         token = self._anim_token
         self._pill_animating = True
@@ -2476,13 +2551,35 @@ class DialFlow:
             if expand:
                 self._set_pill_corners(small=False)
                 time.sleep(0.03)  # let the just-shown window settle first
-            if hwnd:
-                try:
-                    dpi = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
-                except Exception:
-                    dpi = 1.0
-                # design spec: grow 180ms cubic-bezier(.2,0,0,1) (strong
-                # ease-out), shrink 200ms cubic-bezier(.4,0,.2,1) (in-out)
+            try:
+                dpi = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0 \
+                    if hwnd else 1.0
+            except Exception:
+                dpi = 1.0
+
+            def place(w, h):
+                """Re-anchor for the size being shown, so the pill keeps
+                hugging its docked edge for the whole animation."""
+                a = self._pill_anchor((w, h)) or anchor
+                if hwnd:
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd, 0, a[0], a[1], int(w * dpi), int(h * dpi),
+                        0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
+                else:
+                    self.pill_win.resize(w, h)
+                    self.pill_win.move(a[0], a[1])
+                self._pill_wh = (w, h)
+
+            if flip:
+                # swap layout and geometry in the same beat
+                self._js(self.pill_win,
+                         "app.vert(%s)" % ("true" if want_vert else "false"))
+                place(*end)
+                time.sleep(0.02)
+            else:
+                self._js(self.pill_win,
+                         "app.vert(%s)" % ("true" if want_vert else "false"))
+                # design spec: grow 180ms strong ease-out, shrink 200ms in-out
                 steps = 16
                 dt = (0.180 if expand else 0.200) / steps
                 for i in range(1, steps + 1):
@@ -2490,35 +2587,20 @@ class DialFlow:
                         return
                     t = i / steps
                     t = 1 - (1 - t) ** 3 if expand else t * t * (3 - 2 * t)
-                    w = round(start[0] + (end[0] - start[0]) * t)
-                    h = round(start[1] + (end[1] - start[1]) * t)
-                    pw, ph = int(w * dpi), int(h * dpi)
-                    ctypes.windll.user32.SetWindowPos(
-                        hwnd, 0, anchor[0] - pw // 2, anchor[1] - ph, pw, ph,
-                        0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
-                    self._pill_wh = (w, h)
+                    place(round(start[0] + (end[0] - start[0]) * t),
+                          round(start[1] + (end[1] - start[1]) * t))
                     time.sleep(dt)
-            else:
-                for i in range(1, 10):
-                    if token != self._anim_token or self.quitting:
-                        return
-                    t = 1 - (1 - i / 9) ** 3
-                    w = int(start[0] + (end[0] - start[0]) * t)
-                    h = int(start[1] + (end[1] - start[1]) * t)
-                    self.pill_win.resize(w, h)
-                    self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
-                    self._pill_wh = (w, h)
-                    time.sleep(0.014)
             self._pill_wh = end
             # reconcile: the native SetWindowPos path resizes the form behind
             # WinForms' back, and a same-size framework resize is skipped as a
             # no-op — so jiggle by 1px first to force a real layout pass that
             # snaps the WebView2 content to the final bounds
             try:
+                a = self._pill_anchor(end) or anchor
                 self.pill_win.resize(end[0] + 1, end[1] + 1)
                 time.sleep(0.02)
                 self.pill_win.resize(end[0], end[1])
-                self.pill_win.move(anchor[0] - end[0] // 2, anchor[1] - end[1])
+                self.pill_win.move(a[0], a[1])
             except Exception:
                 pass
             if not expand:
