@@ -58,10 +58,11 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.4.2"
+APP_VERSION = "3.5.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
-HOVER_W, HOVER_H = 178, 44  # hovered: status text + cancel / open controls
+HOVER_W, HOVER_H = 190, 44  # hovered: status text + cancel / open controls
+PANEL_W, PANEL_H = 232, 150  # expanded popup: status + dock picker
 PILL_PAD = 18               # gap from the docked screen edge
 PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
 UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
@@ -153,29 +154,40 @@ TONE_PROMPTS = {
     "prompt": "",  # handled by PROMPT_MODE — it replaces the whole recipe
 }
 
-# Dictating a prompt to an AI is this app's dominant use. Spoken asks arrive
-# as one long stream: the objective buried mid-sentence, requirements
-# scattered, the same point revisited twice. This restructures that into
-# something an agent can act on — WITHOUT inventing scope, which is the
-# failure mode that makes "AI cleanup" untrustworthy for prompts.
+# Dictating a prompt to an AI is this app's dominant use. The FIRST version
+# of this rewrote the speaker's words into imperative task lists — "what is
+# flow mode 2.0?" came back as "1. Explain what Flow Mode 2.0 is." That is
+# fabrication, not formatting. This version reorganizes and nothing else.
 PROMPT_MODE = (
-    "You are formatting dictated speech into a prompt the speaker will send "
-    "to an AI coding assistant. Restructure it for clarity:\n"
-    "- Open with a one-line statement of what they want done. If they said "
-    "it late in the recording, move it to the front.\n"
-    "- Put every distinct request on its own numbered line, in the order "
-    "spoken. Merge duplicates where the same ask is repeated or revisited.\n"
-    "- Keep constraints, file names, tool names, and technical terms EXACTLY "
-    "as spoken — never normalize or 'correct' an identifier.\n"
-    "- Drop filler, self-corrections (keep only the corrected version), and "
-    "conversational padding ('so yeah', 'you know', 'alright mate').\n"
-    "- Keep the original language mix exactly; never translate.\n"
-    "CRITICAL: never add a requirement, suggestion, caveat, or section the "
-    "speaker did not say, and never answer or act on the request — you are "
-    "formatting it, not fulfilling it. If they asked a question, it stays a "
-    "question.\n"
-    "Return ONLY the formatted prompt."
+    "You are a TRANSCRIPT FORMATTER. The text is speech dictated by a user "
+    "who will send it to an AI assistant. You reorganize their words. You "
+    "do not rewrite them.\n"
+    "ALLOWED:\n"
+    "- Put each distinct request on its own numbered line, in the order "
+    "spoken, using THEIR OWN WORDS for each one.\n"
+    "- Move a clearly-stated overall goal to the top if it was said late.\n"
+    "- Add paragraph breaks; fix punctuation, capitalization and obvious "
+    "speech-to-text word errors.\n"
+    "- Delete filler ('um', 'so yeah', 'you know', 'يعني' as filler) and "
+    "false starts, keeping only the corrected half of a self-correction.\n"
+    "FORBIDDEN — these are failures, not improvements:\n"
+    "- Rewriting a sentence into a different grammatical form. If they say "
+    "'what is X' it stays 'What is X?' — NEVER 'Explain what X is'.\n"
+    "- Introducing verbs or nouns they did not say (no 'Explain', "
+    "'Clarify', 'Describe', 'Implement', 'Ensure', 'Provide').\n"
+    "- Summarizing, condensing, merging distinct points, or dropping ANY "
+    "detail, example, aside or caveat. Length must stay comparable.\n"
+    "- Adding requirements, structure, headings or commentary of your own.\n"
+    "- Answering, or acting on, anything in the text.\n"
+    "- Translating. Keep the Arabic/English mix exactly as spoken.\n"
+    "Return ONLY the reorganized transcript."
 )
+
+# Cleanup is chunked for the same reason ASR is: one call over a long
+# transcript both times out (measured >180s) and invites the model to
+# summarize the whole thing. Small segments stay fast and keep the output
+# proportional to the input.
+CLEAN_CHARS = 1400
 
 
 def _app_context():
@@ -338,8 +350,28 @@ body.flash #flashrim{display:block}
 body.flash .pspin{display:none}
 body.flash #pdots{animation:none}
 body.flash #pdots i{background:#C9BEFF;animation:pillFlash .3s ease-out both}
+/* expanded panel: status + dock picker */
+#panel-l{flex-direction:column;align-items:stretch;gap:9px;padding:11px 12px;
+justify-content:flex-start}
+#panel-l .ph{display:flex;align-items:center;gap:8px}
+#panel-l .ph b{flex:1;min-width:0;font-size:11.5px;font-weight:600;
+color:#EFE9DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-l .plab{font-size:9px;font-weight:700;letter-spacing:.1em;
+text-transform:uppercase;color:#8F86B8}
+#dock{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+#dock button{height:23px;border:1px solid rgba(255,255,255,.10);border-radius:6px;
+background:rgba(255,255,255,.05);cursor:pointer;padding:0;
+display:flex;align-items:center;justify-content:center;
+transition:background .14s,border-color .14s}
+#dock button:hover{background:rgba(156,134,246,.28)}
+#dock button.on{background:rgba(156,134,246,.42);border-color:#9C86F6}
+#dock button i{display:block;width:13px;height:4px;border-radius:2px;
+background:#CFC6F5}
 body.failed #fail-l{display:flex}
 body.failed #failwash{display:block}
+body.panel #core-l,body.panel #rec-l,body.panel #proc-l,
+body.panel #hov-l,body.panel #fail-l{display:none}
+body.panel #panel-l{display:flex}
 /* hover wins over every non-failure layer. These MUST be id-level selectors:
    `body.hov .layer{display:none}` loses to `body.rec #rec-l{display:flex}`
    on specificity, which left the timer and waveform painting through the
@@ -364,9 +396,31 @@ body.hov #hov-l{display:flex}
   <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
  <b id="fail-t">Transcription failed</b>
 </div>
+<div class="layer" id="panel-l">
+ <div class="ph"><b id="panel-t">Idle</b>
+  <button class="pbtn" id="btn-panel-close" title="Close">
+   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2.6" stroke-linecap="round">
+    <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+ </div>
+ <div class="plab">Position</div>
+ <div id="dock">
+  <button data-p="top-left"><i></i></button>
+  <button data-p="top-center"><i></i></button>
+  <button data-p="top-right"><i></i></button>
+  <button data-p="bottom-left"><i></i></button>
+  <button data-p="bottom-center"><i></i></button>
+  <button data-p="bottom-right"><i></i></button>
+ </div>
+ <div class="plab" id="panel-hint">Drag the bar to move it anywhere</div>
+</div>
 <div class="layer" id="hov-l">
- <div id="grip"></div>
+ <div id="grip" title="Drag to move"></div>
  <div id="hov-t">Idle</div>
+ <button class="pbtn" id="btn-panel" title="Position &amp; more">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+   stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/>
+   <line x1="3" y1="9" x2="21" y2="9"/></svg></button>
  <button class="pbtn" id="btn-open" title="Open Dial Flow">
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -379,6 +433,7 @@ body.hov #hov-l{display:flex}
 </div>
 <script>
 let startedAt=0,lvl=0,disp=0,base='mini',hovering=false,busy=false;
+let panelOpen=false,dragging=false,dock='bottom-center';
 const H=[8,14,20,11,17,22,9,15,12,18,10,16];
 const wave=document.getElementById('wave');
 const bars=H.map(()=>{const b=document.createElement('i');
@@ -395,12 +450,27 @@ const LABEL={mini:()=>'Idle — press '+RECKEY,rec:()=>'Recording',
  processing:()=>'Transcribing…',failed:()=>'Transcription failed',
  '':()=>''};
 function paint(){
- /* hover overlays whatever the engine state is; failure outranks hover so a
-    failed take is never hidden by the cursor resting on the pill */
- document.body.className=base+((hovering&&base!=='failed')?' hov':'');
+ /* panel outranks hover, hover overlays the engine state, and failure
+    outranks hover so a failed take is never hidden by the cursor */
+ document.body.className=base
+  +(panelOpen?' panel':((hovering&&base!=='failed')?' hov':''));
  const l=LABEL[base.split(' ')[0]];
- document.getElementById('hov-t').textContent=l?l():'Idle';
+ const txt=l?l():'Idle';
+ document.getElementById('hov-t').textContent=txt;
+ document.getElementById('panel-t').textContent=txt;
  document.getElementById('btn-cancel').style.display=busy?'flex':'none';
+}
+function setDock(p){
+ dock=p;
+ document.querySelectorAll('#dock button').forEach(
+  b=>b.classList.toggle('on',b.dataset.p===p));
+}
+function setPanel(on){
+ panelOpen=on;
+ if(on)hovering=false;
+ paint();
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_panel)
+  window.pywebview.api.pill_panel(on);
 }
 window.app={
  start(ts){startedAt=ts;lvl=0;disp=0;base='rec';busy=true;paint();},
@@ -414,24 +484,64 @@ window.app={
  failed(msg){base='failed';busy=false;
   if(msg)document.getElementById('fail-t').textContent=msg;
   paint();},
- reckey(k){RECKEY=(k||'f9').toUpperCase();paint();}
+ reckey(k){RECKEY=(k||'f9').toUpperCase();paint();},
+ pos(p){setDock(p);}
 };
 const body=document.body;
 body.addEventListener('mouseenter',()=>{
- if(base==='failed')return;
+ if(base==='failed'||panelOpen)return;
  hovering=true;pyapi('pill_hover_in');paint();});
 body.addEventListener('mouseleave',()=>{
+ if(panelOpen||dragging)return;
  hovering=false;pyapi('pill_hover_out');paint();});
 document.getElementById('btn-cancel').addEventListener('click',e=>{
  e.stopPropagation();pyapi('pill_cancel');});
 document.getElementById('btn-open').addEventListener('click',e=>{
  e.stopPropagation();pyapi('pill_open');});
-/* anywhere else on the hovered pill starts a native window drag */
-document.getElementById('hov-l').addEventListener('mousedown',e=>{
- if(e.target.closest('.pbtn'))return;
- e.preventDefault();pyapi('pill_drag');});
+document.getElementById('btn-panel').addEventListener('click',e=>{
+ e.stopPropagation();setPanel(true);});
+document.getElementById('btn-panel-close').addEventListener('click',e=>{
+ e.stopPropagation();setPanel(false);});
+document.getElementById('dock').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-p]');if(!b)return;
+ e.stopPropagation();setDock(b.dataset.p);
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_set_pos)
+  window.pywebview.api.pill_set_pos(b.dataset.p);});
 document.getElementById('fail-l').addEventListener('click',()=>{
  base='mini';paint();pyapi('pill_open');});
+
+/* ---- drag ----
+   WM_NCLBUTTONDOWN could not work from the JS bridge thread (ReleaseCapture
+   is per-thread, so WebView2 kept the pointer capture and the window never
+   really moved — every drop snapped back). Pointer events + explicit moves
+   are boring and reliable. */
+function startDrag(ev){
+ if(ev.button!==0||ev.target.closest('.pbtn')||ev.target.closest('#dock'))return;
+ ev.preventDefault();
+ const sx=ev.screenX,sy=ev.screenY;
+ let pending=null,raf=0;
+ dragging=true;
+ const api=(window.pywebview||{}).api;
+ if(!api||!api.pill_drag_start)return;
+ api.pill_drag_start();
+ const move=e=>{
+  pending=[e.screenX-sx,e.screenY-sy];
+  if(raf)return;
+  raf=requestAnimationFrame(()=>{raf=0;
+   if(pending&&api.pill_drag_move)api.pill_drag_move(pending[0],pending[1]);});
+ };
+ const up=()=>{
+  window.removeEventListener('pointermove',move);
+  window.removeEventListener('pointerup',up);
+  if(raf)cancelAnimationFrame(raf);
+  dragging=false;
+  if(api.pill_drag_end)api.pill_drag_end();
+ };
+ window.addEventListener('pointermove',move);
+ window.addEventListener('pointerup',up);
+}
+document.getElementById('hov-l').addEventListener('pointerdown',startDrag);
+document.querySelector('#panel-l .ph').addEventListener('pointerdown',startDrag);
 function raf(){
  if(document.body.classList.contains('rec')){
   if(startedAt){
@@ -1219,8 +1329,14 @@ class Engine:
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     json={"model": model,
                           "messages": [{"role": "user", "content": prompt}],
-                          "temperature": 0.1},
-                    timeout=(10, 45),
+                          "temperature": 0.1,
+                          # generous ceiling: cleanup output is the same
+                          # length as its input, never a summary
+                          "max_tokens": 4000},
+                    # a whole-transcript cleanup was measured taking >180s and
+                    # timing out at the old 45s, which is why every long take
+                    # silently pasted raw
+                    timeout=(10, 150),
                 )
             except requests.RequestException:
                 logging.exception("chat call failed")
@@ -1255,37 +1371,122 @@ class Engine:
         self._clean_model_idx = 0
         return None
 
+    @staticmethod
+    def _text_chunks(text, limit=CLEAN_CHARS):
+        """Split on sentence ends so each cleanup call is small. Keeps the
+        model from compressing a whole transcript into a summary, and keeps
+        every request well inside the timeout."""
+        if len(text) <= limit:
+            return [text]
+        parts, buf = [], ""
+        for piece in re.split(r"(?<=[.!?؟।\n])\s+", text):
+            if buf and len(buf) + len(piece) + 1 > limit:
+                parts.append(buf.strip())
+                buf = piece
+            else:
+                buf = f"{buf} {piece}".strip()
+        if buf.strip():
+            parts.append(buf.strip())
+        return parts or [text]
+
+    @staticmethod
+    def _plausible(original, cleaned):
+        """Is this cleanup trustworthy enough to paste?
+
+        A language model can degenerate — one real run returned
+        '(100)(2)(3)(4)(3)(3)(3)…' for a paragraph of speech — or quietly
+        summarize. For a text-FIDELITY task the output must be checked, not
+        assumed. Rejecting a bad cleanup costs polish; accepting one costs
+        the user's actual words."""
+        if not cleaned or not cleaned.strip():
+            return False, "empty"
+        ratio = len(cleaned) / max(1, len(original))
+        if ratio < 0.55:
+            return False, f"summarized to {ratio:.0%}"
+        if ratio > 1.7:
+            return False, f"ballooned to {ratio:.0%}"
+        words = cleaned.split()
+        if len(words) > 12 and len(set(words)) / len(words) < 0.25:
+            return False, "degenerate repetition"
+        letters = sum(c.isalpha() or c.isspace() for c in cleaned)
+        if letters / len(cleaned) < 0.55:
+            return False, "mostly punctuation/digits"
+        return True, ""
+
+    def _clean_one(self, recipe, label, chunk, idx, total):
+        """Clean one segment, validate it, retry once, else keep the
+        original words."""
+        tag = f" (part {idx} of {total})" if total > 1 else ""
+        for attempt in range(2):
+            got = self._chat(f"{recipe}\n\n{label}{tag}: {chunk}")
+            if got is None:
+                return None                      # transport failure
+            ok, why = self._plausible(chunk, got)
+            if ok:
+                return got
+            logging.warning("cleanup rejected (%s), attempt %s/2: %r",
+                            why, attempt + 1, got[:120])
+        return ""                                 # keep the original text
+
+    def _clean_chunked(self, recipe, text, label):
+        """Run `recipe` over the text in segments. A segment that fails or
+        comes back untrustworthy keeps its ORIGINAL text — losing the user's
+        words is strictly worse than leaving them unpolished."""
+        chunks = self._text_chunks(text)
+        out, failed, rejected = [], 0, 0
+        for i, c in enumerate(chunks):
+            got = self._clean_one(recipe, label, c, i + 1, len(chunks))
+            if got:
+                out.append(got)
+            else:
+                if got is None:
+                    failed += 1      # transport failure
+                else:
+                    rejected += 1    # model returned something untrustworthy
+                out.append(c)        # keep the user's own words
+        if failed or rejected:
+            logging.warning("cleanup: %s/%s segments left raw "
+                            "(%s network, %s rejected)",
+                            failed + rejected, len(chunks), failed, rejected)
+        if failed + rejected == len(chunks):
+            return None                           # nothing was cleaned
+        return "\n\n".join(out)
+
     def _flow_clean(self, text, app_ctx="general"):
         tone_key = self.settings.get("tone", "auto")
         if tone_key == "prompt":
             # prompt mode replaces the recipe wholesale; app-context
             # formatting would fight it (a prompt is a prompt everywhere)
-            return self._chat(f"{PROMPT_MODE}\n\nDictation: {text}")
+            return self._clean_chunked(PROMPT_MODE, text, "Dictation")
         tone = TONE_PROMPTS.get(tone_key, TONE_PROMPTS["auto"])
         ctx = APP_PROMPTS.get(app_ctx, "")
-        prompt = (
-            "You are a dictation post-processor. Rewrite the transcript "
-            "below:\n"
-            "- remove filler words (umm, uh, أه, اه, اممم, and يعني when used "
-            "as pure filler), false starts, and stutters\n"
-            "- if the speaker corrects themselves mid-sentence (e.g. 'no "
-            "wait', 'أقصد', 'I mean'), keep only the corrected version\n"
-            "- fix grammar, punctuation and capitalization; restructure "
-            "rambling run-ons into clear sentences without changing meaning\n"
-            "- break into paragraphs when the topic shifts (phrases like 'on "
-            "another note' start a new paragraph); if the speaker enumerates "
-            "items ('number one…', 'first…', 'اول حاجة…'), format them as a "
-            "numbered or bulleted list in the spoken order\n"
-            "- keep the original language mix EXACTLY — Arabic stays in "
-            "Arabic script, English words stay in English; never translate\n"
-            "- never summarize, never answer questions contained in the "
-            "text, never add content\n"
+        recipe = (
+            "You are a dictation CLEANER. You tidy the speaker's words. You "
+            "never replace them with your own.\n"
+            "DO:\n"
+            "- remove filler ('umm', 'uh', 'so yeah', 'you know', أه/اه/اممم, "
+            "and يعني used as filler), false starts and stutters\n"
+            "- on a self-correction ('no wait', 'أقصد', 'I mean'), keep only "
+            "the corrected version\n"
+            "- fix punctuation, capitalization and obvious speech-to-text "
+            "word errors; split run-on speech into sentences\n"
+            "- start a new paragraph when the topic shifts ('on another "
+            "note'); if items are enumerated ('number one…', 'first…', "
+            "'اول حاجة…'), lay them out as a numbered list in the order said\n"
             f"- {tone}\n"
             + (f"- {ctx}\n" if ctx else "")
-            + "Return ONLY the final text, no quotes, no commentary.\n\n"
-            f"Transcript: {text}"
+            + "NEVER (these are failures, not improvements):\n"
+            "- summarize, shorten, or drop ANY point, example, aside or "
+            "caveat. The result must cover everything that was said and be "
+            "comparable in length — this is a cleanup, not a summary.\n"
+            "- reword a sentence into a different grammatical form, or use "
+            "vocabulary the speaker did not use\n"
+            "- answer, act on, or comment on anything in the text; a question "
+            "stays a question\n"
+            "- translate; keep the Arabic/English mix exactly as spoken\n"
+            "Return ONLY the cleaned text, no quotes, no commentary."
         )
-        return self._chat(prompt)
+        return self._clean_chunked(recipe, text, "Transcript")
 
 
 class Api:
@@ -1345,8 +1546,20 @@ class PillApi:
     def __init__(self, app):
         self._app = app
 
-    def pill_drag(self):
-        return self._app.pill_drag()
+    def pill_drag_start(self):
+        return self._app.pill_drag_start()
+
+    def pill_drag_move(self, dx, dy):
+        return self._app.pill_drag_move(dx, dy)
+
+    def pill_drag_end(self):
+        return self._app.pill_drag_end()
+
+    def pill_set_pos(self, pos):
+        return self._app.pill_set_pos(pos)
+
+    def pill_panel(self, open_):
+        return self._app.pill_panel(open_)
 
     def pill_cancel(self):
         return self._app.pill_cancel()
@@ -2036,36 +2249,70 @@ class DialFlow:
 
     # ---------- pill drag + controls (called from PILL_HTML) ----------
 
-    def pill_drag(self):
-        """Native window drag: hand the mouse to Windows via WM_NCLBUTTONDOWN
-        so the pill moves at compositor speed instead of round-tripping every
-        mousemove through the JS bridge. Blocks until the drag ends, then the
-        pill docks to the nearest zone."""
+    class _RECT(ctypes.Structure):
+        _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long),
+                    ("r", ctypes.c_long), ("b", ctypes.c_long)]
+
+    def _pill_rect(self):
         hwnd = getattr(self, "_pill_hwnd", None)
         if not hwnd:
+            return None
+        rc = DialFlow._RECT()
+        ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rc))
+        return rc
+
+    def pill_drag_start(self):
+        """Begin a drag. WM_NCLBUTTONDOWN was the obvious approach and it
+        did NOT work here: ReleaseCapture only affects the calling thread,
+        and the JS bridge runs on a worker, so the modal drag loop never
+        took over from WebView2's own pointer capture. The window appeared
+        to follow the cursor but its real position never changed, so the
+        drop always snapped back to where it started. Driving SetWindowPos
+        from JS pointer deltas is boring and actually works."""
+        self._pill_dragging = True
+        rc = self._pill_rect()
+        self._drag_origin = (rc.l, rc.t) if rc else None
+        return bool(self._drag_origin)
+
+    def pill_drag_move(self, dx, dy):
+        """Offset from where the drag began, in physical pixels."""
+        hwnd = getattr(self, "_pill_hwnd", None)
+        if not hwnd or not getattr(self, "_drag_origin", None):
             return
+        x0, y0 = self._drag_origin
         try:
-            u32 = ctypes.windll.user32
-            self._pill_dragging = True
-            u32.ReleaseCapture()
-            u32.SendMessageW(hwnd, 0x00A1, 2, 0)  # WM_NCLBUTTONDOWN, HTCAPTION
-
-            class RECT(ctypes.Structure):
-                _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long),
-                            ("r", ctypes.c_long), ("b", ctypes.c_long)]
-
-            rc = RECT()
-            u32.GetWindowRect(hwnd, ctypes.byref(rc))
-            pos = self._snap_pos(rc.l, rc.t, rc.r - rc.l, rc.b - rc.t)
-            if pos != self.settings.get("pill_pos"):
-                self.settings["pill_pos"] = pos
-                self.settings.save()
-                logging.info("pill docked %s", pos)
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, 0, int(x0 + dx), int(y0 + dy), 0, 0,
+                0x0001 | 0x0004 | 0x0010)  # NOSIZE | NOZORDER | NOACTIVATE
         except Exception:
-            logging.exception("pill drag failed")
+            logging.exception("pill drag move failed")
+
+    def pill_drag_end(self):
+        """Dock to the nearest zone and remember it."""
+        try:
+            rc = self._pill_rect()
+            if rc is not None:
+                pos = self._snap_pos(rc.l, rc.t, rc.r - rc.l, rc.b - rc.t)
+                if pos != self.settings.get("pill_pos"):
+                    self.settings["pill_pos"] = pos
+                    self.settings.save()
+                logging.info("pill docked %s", pos)
+                self._js(self.pill_win, f"app.pos({json.dumps(pos)})")
+        except Exception:
+            logging.exception("pill drag end failed")
         finally:
+            self._drag_origin = None
             self._pill_dragging = False
             self._move_pill()
+
+    def pill_set_pos(self, pos):
+        """Explicit dock choice from the pill's position picker."""
+        if pos in ("top-left", "top-center", "top-right",
+                   "bottom-left", "bottom-center", "bottom-right"):
+            self.settings["pill_pos"] = pos
+            self.settings.save()
+            self._move_pill()
+            logging.info("pill docked %s (picker)", pos)
 
     def pill_cancel(self):
         """X on the pill: drop whatever is in flight."""
@@ -2082,11 +2329,20 @@ class DialFlow:
                 or getattr(self, "_pill_processing", False)
                 or (self.engine is not None and self.engine.recording))
 
+    def pill_panel(self, open_):
+        """Open/close the bigger popup that houses the dock picker."""
+        self._panel_open = bool(open_)
+        target = "panel" if open_ else (
+            "hover" if getattr(self, "_hover_grown", False) else self._busy())
+        threading.Thread(target=self._animate_pill, args=(target,),
+                         daemon=True).start()
+
     def pill_hover_in(self):
         """Grow so the label and controls have room. This has to work DURING
         a recording too — cancelling mid-take is the whole point of the
         button."""
-        if getattr(self, "_pill_dragging", False):
+        if getattr(self, "_pill_dragging", False) or \
+                getattr(self, "_panel_open", False):
             return
         self._hover_grown = True
         threading.Thread(target=self._animate_pill, args=("hover",),
@@ -2098,7 +2354,8 @@ class DialFlow:
         # clear the flag even mid-drag, otherwise the pill stays stuck at
         # hover size forever while the JS believes it is no longer hovered
         self._hover_grown = False
-        if getattr(self, "_pill_dragging", False):
+        if getattr(self, "_pill_dragging", False) or \
+                getattr(self, "_panel_open", False):
             return
         # back to whichever size the engine state owns
         threading.Thread(target=self._animate_pill, args=(self._busy(),),
@@ -2138,7 +2395,9 @@ class DialFlow:
 
         expand: True -> recording pill, False -> idle bubble, "hover" ->
         the slightly wider size that fits the label and controls."""
-        if expand == "hover":
+        if expand == "panel":
+            end = (PANEL_W, PANEL_H)
+        elif expand == "hover":
             end = (HOVER_W, HOVER_H)
         elif expand:
             end = (PILL_W, PILL_H)
@@ -2264,6 +2523,8 @@ class DialFlow:
             self._js(self.pill_win, "app.mode('mini')")
             self._js(self.pill_win,
                      f"app.reckey({json.dumps(self.settings['record_key'])})")
+            self._js(self.pill_win, "app.pos(%s)" % json.dumps(
+                self.settings.get("pill_pos", "bottom-center")))
             self._move_pill()
             self._pill_visible = True
             threading.Timer(0.05, self._restore_focus, args=(prev_fg,)).start()
