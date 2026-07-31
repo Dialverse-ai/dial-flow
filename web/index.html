@@ -842,7 +842,8 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.05)}
           </div>
           <div class="set-row"><span class="sl">Record key</span><select id="sel-reckey"></select></div>
           <div class="set-row">
-            <div><div class="sl">Command key</div><div class="ss">select text, press it, speak an edit — "make this formal"</div></div>
+            <div><div class="sl">Command key</div><div class="ss">select text, press it, speak an edit — "make this formal"</div>
+              <div class="ss" id="cmdkey-warn" style="display:none;color:var(--rec-text);font-weight:600">Same as the record key — command mode is off until you change one.</div></div>
             <select id="sel-cmdkey"></select>
           </div>
           <div class="set-row"><span class="sl">Language key</span><select id="sel-langkey"></select></div>
@@ -993,7 +994,10 @@ window.app = {
     if (st === 'idle') inner = `<span class="dot"></span><span>Idle — press ${rk} to start</span>`;
     else if (cmd) inner = `<span class="dot"></span><span>Command — listening</span><span class="timer" id="spill-timer">0:00</span>`;
     else if (st === 'recording') inner = `<span class="dot"></span><span>Recording</span><span class="timer" id="spill-timer">0:00</span>`;
-    else if (st === 'transcribing') inner = `<span class="spin"></span><span>Transcribing…</span>`;
+    // detail carries chunk progress ("3/14") for long takes — showing it is
+    // the difference between "is this stuck?" and visible progress
+    else if (st === 'transcribing') inner = `<span class="spin"></span><span>Transcribing${
+      /^\d+\/\d+$/.test(detail || '') ? ' ' + detail : '…'}</span>`;
     else if (st === 'cleaning') inner = `<span style="font-size:11px">✦</span><span>Polishing…</span>`;
     else if (st === 'error') inner = `<span style="font-size:10px">✕</span><span>${esc(detail || 'Error')}</span>`;
     p.innerHTML = inner;
@@ -1008,6 +1012,13 @@ window.app = {
     renderFeed(); renderRail();
   },
   setLanguage(lang){ segSet('seg-lang', lang); },
+  keyClash(on){
+    // the record/command dropdowns overlap (both offer F6/F8); Python skips
+    // the command binding on a collision, so say so instead of leaving a
+    // hint that promises a key which does nothing
+    const el = $('cmdkey-warn');
+    if (el) el.style.display = on ? 'block' : 'none';
+  },
   updateAvailable(tag){
     $('upd-sub').textContent = `${tag} is available — update from the Dictation page.`;
     $('update-title').textContent = `Dial Flow ${tag} is available`;
@@ -1017,15 +1028,16 @@ window.app = {
     $('update-btn').textContent = 'Update now';
     $('update-banner').classList.add('on');
   },
-  updateState(st){
+  updateState(st, why){
     if (st === 'downloading'){
       $('update-btn').disabled = true;
       $('update-btn').textContent = 'Downloading…';
-      $('update-sub').textContent = 'Grabbing the new version — the app will restart itself.';
+      $('update-sub').textContent = 'Grabbing the new version and checking it — the app will restart itself.';
     } else if (st === 'failed'){
       $('update-btn').disabled = false;
       $('update-btn').textContent = 'Retry';
-      $('update-sub').textContent = 'Update failed — or download it from github.com/Dialverse-ai/dial-flow/releases';
+      $('update-sub').textContent = (why ? why + ' — nothing was changed. ' : 'Update failed — ')
+        + 'Retry, or download it from github.com/Dialverse-ai/dial-flow/releases';
     }
   }
 };
@@ -1077,6 +1089,13 @@ function renderFeed(){
   $('feed').style.display = (entries.length === 0 && !q) ? 'none' : 'block';
   const feed = $('feed');
   feed.innerHTML = '';
+  if (!entries.length && q){
+    const d = document.createElement('div');
+    d.className = 'list-empty';
+    d.textContent = 'No dictations match “' + q + '”.';
+    feed.appendChild(d);
+    return;
+  }
   let lastDay = '';
   for (const e of entries){
     const dl = dayLabel(e.ts);

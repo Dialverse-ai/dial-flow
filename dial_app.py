@@ -8,6 +8,7 @@ or the project dir (dev). Errors go to app.log.
 
 import base64
 import ctypes
+import hashlib
 import io
 import json
 import logging
@@ -57,7 +58,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.4.0"
+APP_VERSION = "3.4.2"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 HOVER_W, HOVER_H = 178, 44  # hovered: status text + cancel / open controls
@@ -270,7 +271,9 @@ PILL_HTML = """<!DOCTYPE html><html><head><style>
 *{margin:0;padding:0}html,body{background:#171320;overflow:hidden}
 body{font-family:'Segoe UI',sans-serif;height:100vh;box-sizing:border-box;
 position:relative;border:1px solid rgba(255,248,235,.26);border-radius:8px}
-body.mini{border:none;border-radius:4px;
+/* :not(.hov) — at hover size the pill must keep the full 8px frame, not the
+   tiny bubble's 4px borderless one */
+body.mini:not(.hov){border:none;border-radius:4px;
 box-shadow:inset 0 0 0 1px rgba(255,248,235,.16)}
 /* design 2a keyframes — authoritative */
 @keyframes pillBreathe{0%,100%{opacity:.3;transform:scaleX(1)}50%{opacity:.75;transform:scaleX(1.12)}}
@@ -320,7 +323,8 @@ justify-content:center;padding:0;transition:background .14s,color .14s}
 background:radial-gradient(circle,#9C86F6 1px,transparent 1.2px);
 background-size:4.5px 4.5px}
 #fail-l{gap:8px;padding:0 10px}
-#fail-l b{font-size:11.5px;font-weight:600;color:#F8A79D;white-space:nowrap}
+#fail-l b{font-size:11.5px;font-weight:600;color:#F8A79D;white-space:nowrap;
+min-width:0;overflow:hidden;text-overflow:ellipsis}
 #failwash{position:absolute;inset:0;border-radius:7px;
 box-shadow:inset 0 0 14px rgba(242,107,94,.3)}
 /* state visibility */
@@ -386,25 +390,31 @@ function pyapi(fn){
  if(window.pywebview&&window.pywebview.api&&window.pywebview.api[fn])
   window.pywebview.api[fn]();
 }
-const LABEL={mini:'Idle — press F9',rec:'Recording',
- processing:'Transcribing…',failed:'Transcription failed'};
+let RECKEY='F9';
+const LABEL={mini:()=>'Idle — press '+RECKEY,rec:()=>'Recording',
+ processing:()=>'Transcribing…',failed:()=>'Transcription failed',
+ '':()=>''};
 function paint(){
  /* hover overlays whatever the engine state is; failure outranks hover so a
     failed take is never hidden by the cursor resting on the pill */
  document.body.className=base+((hovering&&base!=='failed')?' hov':'');
- document.getElementById('hov-t').textContent=LABEL[base.split(' ')[0]]||'Idle';
+ const l=LABEL[base.split(' ')[0]];
+ document.getElementById('hov-t').textContent=l?l():'Idle';
  document.getElementById('btn-cancel').style.display=busy?'flex':'none';
 }
 window.app={
  start(ts){startedAt=ts;lvl=0;disp=0;base='rec';busy=true;paint();},
  level(v){lvl=v;},
- mode(m){base=m||'mini';busy=(m==='processing');paint();},
+ /* '' is a REAL state — the blank frame held while the window shrinks.
+    `m||'mini'` used to coerce it to mini, so the idle core painted at full
+    expanded width for the whole collapse. */
+ mode(m){base=(m===undefined||m===null)?'mini':m;
+  busy=(m==='processing');paint();},
  done(){base='processing flash';busy=false;paint();},
  failed(msg){base='failed';busy=false;
   if(msg)document.getElementById('fail-t').textContent=msg;
   paint();},
- /* size drives which layer can fit: only offer controls at hover size */
- hoverable(on){document.body.dataset.hoverable=on?'1':'0';}
+ reckey(k){RECKEY=(k||'f9').toUpperCase();paint();}
 };
 const body=document.body;
 body.addEventListener('mouseenter',()=>{
@@ -612,12 +622,14 @@ def _match_snippet(text, snippets):
 class Engine:
     """Recording + transcription + optional AI cleanup. UI-agnostic."""
 
-    def __init__(self, api_key, settings, on_state, on_transcript, on_language):
+    def __init__(self, api_key, settings, on_state, on_transcript, on_language,
+                 on_cancelled_take=None):
         self.api_key = api_key
         self.settings = settings
         self.on_state = on_state
         self.on_transcript = on_transcript
         self.on_language = on_language
+        self.on_cancelled_take = on_cancelled_take or (lambda audio: None)
         self.language = settings.get("language", "auto")
         self.recording = False
         self.frames = queue.Queue()
@@ -635,25 +647,43 @@ class Engine:
         # bumped by cancel(); a worker whose generation is stale drops its
         # result instead of pasting into whatever the user is now doing
         self._gen = 0
+        self._last_partial = None
+        self.quitting = False
+        self.rebuild_chimes()
+        # first device-open of a session is the slow one — take that hit now
+        threading.Thread(target=self._prewarm_mic, daemon=True).start()
 
     def cancel(self):
-        """Drop whatever is in flight — a live recording or an in-flight
-        transcription. The take still lands in history so nothing is lost."""
+        """Drop whatever is in flight. A live recording is still written to
+        disk first — cancelling must never be the thing that loses audio,
+        and the saved take stays retryable from history."""
         self._gen += 1
-        if self.recording:
-            with self.lock:
+        audio = None
+        with self.lock:
+            was = self.recording
+            if was:
                 self.recording = False
                 self.level = 0.0
                 try:
                     self.stream.stop()
                     self.stream.close()
                 except Exception:
-                    pass
-                self.mode = "dictate"
+                    logging.exception("cancel: stream close failed")
+                chunks = []
+                while not self.frames.empty():
+                    chunks.append(self.frames.get())
+                if chunks:
+                    audio = np.concatenate(chunks).flatten()
+            # unconditional: a mode left at "command" would route the NEXT
+            # ordinary dictation through the voice-edit path with a stale
+            # selection and paste over whatever the user is doing
+            self.mode = "dictate"
+            self._starting = False
+            self._want_stop = False
+        if audio is not None and len(audio) > SAMPLE_RATE // 2 \
+                and _speech_present(audio):
+            self.on_cancelled_take(audio)
         self.on_state("idle", "Cancelled")
-        self.rebuild_chimes()
-        # first device-open of a session is the slow one — take that hit now
-        threading.Thread(target=self._prewarm_mic, daemon=True).start()
 
     def _prewarm_mic(self):
         try:
@@ -745,9 +775,13 @@ class Engine:
                 self._app_ctx = "general"
             self.on_state("recording",
                           "command" if self.mode == "command" else "")
-            self._play(self.start_wav, block=True)  # ~140ms, before mic opens
-            self.frames = queue.Queue()
             try:
+                # ~140ms tick, played before the mic opens. Anything raising
+                # in here (winsound on a busy device, a bad mic index) used
+                # to leave _starting stuck True, which poisons _want_stop and
+                # makes EVERY later recording abort the instant it starts.
+                self._play(self.start_wav, block=True)
+                self.frames = queue.Queue()
                 self.stream = sd.InputStream(
                     samplerate=SAMPLE_RATE, channels=1, dtype="float32",
                     device=self._resolve_device(),
@@ -755,7 +789,7 @@ class Engine:
                 )
                 self.stream.start()
             except Exception as e:
-                logging.exception("mic open failed")
+                logging.exception("recording start failed")
                 self._starting = False
                 self._want_stop = False
                 self.mode = "dictate"
@@ -763,11 +797,31 @@ class Engine:
                 return
             self.recording = True
             self._starting = False
+            self._start_watchdog()
         # hold-to-talk: if the key was released during the ~300ms prep,
         # honor it now instead of recording forever
         if getattr(self, "_want_stop", False):
             self._want_stop = False
             self._stop_inner()
+
+    def _start_watchdog(self):
+        """Stop at MAX_SECONDS instead of recording forever. Without this a
+        forgotten take grows the frame queue unbounded (~64KB/s) and then
+        gets silently truncated at stop time — minutes of speech vanishing
+        with no message."""
+        started = self.started_at
+
+        def watch():
+            while not self.quitting:
+                time.sleep(1.0)
+                if not self.recording or self.started_at != started:
+                    return
+                if time.time() - started >= MAX_SECONDS:
+                    logging.warning("watchdog: stopping at %ss", MAX_SECONDS)
+                    self.on_state("recording", "limit")
+                    self.stop_recording()
+                    return
+        threading.Thread(target=watch, daemon=True).start()
 
     def _stop_inner(self):
         with self.lock:
@@ -800,17 +854,26 @@ class Engine:
                 except Exception:
                     logging.exception("audio enhance failed — using raw")
             self.on_state("transcribing", "")
+            # snapshot EVERYTHING the worker needs — a second recording
+            # started mid-transcription must not swap state under it
             if mode == "command":
-                # snapshot the selection NOW — a second command-mode session
-                # started mid-transcription must not swap it under this worker
-                threading.Thread(
-                    target=self._command_transcribe,
-                    args=(audio, elapsed, self.language, self._cmd_selection),
-                    daemon=True).start()
+                self._spawn(self._command_transcribe, audio, elapsed,
+                            self.language, self._cmd_selection)
             else:
-                threading.Thread(
-                    target=self._transcribe,
-                    args=(audio, elapsed, self.language), daemon=True).start()
+                self._spawn(self._transcribe, audio, elapsed, self.language,
+                            self._app_ctx)
+
+    def _spawn(self, fn, *args):
+        """Run a worker with a top-level guard. An unguarded raise killed the
+        thread silently: no transcript, no error in the UI, and the pill stuck
+        on 'Transcribing…' until restart."""
+        def run():
+            try:
+                fn(*args)
+            except Exception:
+                logging.exception("%s crashed", fn.__name__)
+                self._worker_state("error", "Something went wrong — see app.log")
+        threading.Thread(target=run, daemon=True).start()
 
     def _split_points(self, audio):
         """Cut a long take into <=CHUNK_SECONDS pieces, snapping each cut to
@@ -898,9 +961,12 @@ class Engine:
             return None, "Network error — check connection"
         out = " ".join(parts)
         if failed:
-            # partial beats nothing: the audio is still on disk for a retry
+            # partial beats nothing, but it must NOT read as a clean success:
+            # the entry gets flagged so the row offers Retry on the full audio
             logging.warning("%s/%s chunks lost", failed, len(spans))
-            return out, None
+            self._last_partial = (failed, len(spans))
+        else:
+            self._last_partial = None
         return out, None
 
     def _keep_audio(self, wav_bytes, t0):
@@ -940,7 +1006,7 @@ class Engine:
                 time.sleep(0.15)  # let the clipboard write commit first
                 _send_paste()
 
-    def _transcribe(self, audio, duration, lang):
+    def _transcribe(self, audio, duration, lang, app_ctx="general"):
         t0 = time.time()
         gen = self._gen
         buf = io.BytesIO()
@@ -960,7 +1026,7 @@ class Engine:
                 "ts": time.time(), "lang": lang, "text": "",
                 "secs": round(duration, 1), "words": 0,
                 "latency": round(time.time() - t0, 1), "cleaned": False,
-                "raw": "", "audio": audio_name, "app": self._app_ctx,
+                "raw": "", "audio": audio_name, "app": app_ctx,
                 "failed": err,
             }
             self.on_transcript(entry)
@@ -978,7 +1044,7 @@ class Engine:
                 "ts": time.time(), "lang": lang, "text": snippet,
                 "secs": round(duration, 1), "words": len(snippet.split()),
                 "latency": round(time.time() - t0, 1), "cleaned": False,
-                "raw": "", "audio": audio_name, "app": self._app_ctx,
+                "raw": "", "audio": audio_name, "app": app_ctx,
                 "snippet": True,
             }
             self.on_transcript(entry)
@@ -989,7 +1055,7 @@ class Engine:
         cleaned = False
         if self.settings.get("flow_mode", True):
             self._worker_state("cleaning", "")
-            out = self._flow_clean(text, self._app_ctx)
+            out = self._flow_clean(text, app_ctx)
             if out:
                 text, cleaned = out, True
             else:
@@ -1012,11 +1078,21 @@ class Engine:
             "cleaned": cleaned,
             "raw": raw_text if cleaned else "",  # for "Undo AI edit"
             "audio": audio_name,                 # for retry / extract audio
-            "app": self._app_ctx,                # for per-app insights
+            "app": app_ctx,                      # for per-app insights
         }
+        partial = self._last_partial
+        if partial:
+            lost, total = partial
+            entry["partial"] = f"{lost} of {total} sections were lost"
         self.on_transcript(entry)
-        self._worker_state("idle", "" if cleaned or not self.settings.get(
-            "flow_mode", True) else "Pasted raw — Flow couldn't reach the AI")
+        if partial:
+            self._worker_state(
+                "error", f"Part of that take was lost ({partial[0]}/"
+                         f"{partial[1]} sections) — retry from history")
+        else:
+            self._worker_state("idle", "" if cleaned or not self.settings.get(
+                "flow_mode", True)
+                else "Pasted raw — Flow couldn't reach the AI")
 
     def transcribe_file(self, path, lang, on_progress=None):
         """Re-run transcription on a kept recording. Returns text or None.
@@ -1082,7 +1158,16 @@ class Engine:
 
     def _command_transcribe(self, audio, duration, lang, selection):
         t0 = time.time()
+        gen = self._gen
+        # command takes were the one path that never hit disk — a failed or
+        # cancelled voice-edit used to cost the recording outright
+        buf = io.BytesIO()
+        sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
+        audio_name = self._keep_audio(buf.getvalue(), t0)
         instruction, err = self._asr_audio(audio, "auto")
+        if self._cancelled(gen):
+            logging.info("command cancelled before edit — nothing pasted")
+            return
         if err or not instruction:
             self._worker_state("error", err or "Didn't catch the instruction")
             return
@@ -1097,6 +1182,11 @@ class Engine:
         if not out:
             self._worker_state("error", "Edit failed — try again")
             return
+        if self._cancelled(gen):
+            # the user dismissed this edit and has almost certainly moved on;
+            # pasting now would dump it into an unrelated window
+            logging.info("command cancelled during edit — not pasting")
+            return
         # insertion replaces the still-highlighted selection in the target app
         self._insert_text(out)
         entry = {
@@ -1109,7 +1199,7 @@ class Engine:
             "cleaned": True,
             "raw": selection,     # "Undo AI edit" restores the original
             "cmd": instruction,   # shown as the edit badge tooltip
-            "audio": "",
+            "audio": audio_name,
         }
         self.on_transcript(entry)
         self._worker_state("idle", "")
@@ -1338,6 +1428,8 @@ class DialFlow:
         self.settings.save()
         if key in ("rec_mode", "record_key", "lang_key", "command_key"):
             self._bind_hotkeys()
+            if key == "record_key":
+                self._js(self.pill_win, f"app.reckey({json.dumps(value)})")
         elif key == "chime_volume" and self.engine:
             self.engine.rebuild_chimes()
         elif key == "autostart":
@@ -1519,13 +1611,16 @@ class DialFlow:
             tag = data.get("tag_name", "")
             if self._vtuple(tag) <= self._vtuple(APP_VERSION):
                 return {"status": "current", "version": APP_VERSION}
-            url = next((a["browser_download_url"]
-                        for a in data.get("assets", [])
-                        if a.get("name", "").lower().endswith(".exe")), None)
-            if not url:
+            asset = next((a for a in data.get("assets", [])
+                          if a.get("name", "").lower().endswith(".exe")), None)
+            if not asset:
                 logging.warning("release %s has no .exe asset", tag)
                 return {"status": "error", "version": APP_VERSION}
-            self._update_url = url
+            self._update_url = asset["browser_download_url"]
+            # integrity metadata: a truncated download used to be swapped in
+            # anyway and bricked the install with "Failed to load Python DLL"
+            self._update_size = asset.get("size") or 0
+            self._update_sha = (asset.get("digest") or "").split("sha256:")[-1]
             logging.info("update available: %s", tag)
             self._js(self.main_win, f"app.updateAvailable({json.dumps(tag)})")
             # toast once per version — the banner is invisible when the app
@@ -1573,40 +1668,108 @@ class DialFlow:
         threading.Thread(target=self._update_worker, daemon=True).start()
         return {"ok": True}
 
+    def _download_update(self, path):
+        """Fetch the new exe and PROVE it is intact before it is allowed to
+        replace a working install. A flaky uplink truncates a 34MB download
+        silently; the old 'bigger than 5MB' check passed such a file, the
+        swap happened, and the app died on launch with 'Failed to load
+        Python DLL' because the PyInstaller archive was cut short."""
+        want_size = getattr(self, "_update_size", 0)
+        want_sha = getattr(self, "_update_sha", "")
+        last = "download failed"
+        for attempt in range(3):
+            try:
+                r = requests.get(self._update_url, timeout=(15, 120),
+                                 stream=True)
+                r.raise_for_status()
+                sha = hashlib.sha256()
+                got = 0
+                with open(path, "wb") as f:
+                    for chunk in r.iter_content(1 << 16):
+                        f.write(chunk)
+                        sha.update(chunk)
+                        got += len(chunk)
+                if want_size and got != want_size:
+                    last = f"truncated ({got} of {want_size} bytes)"
+                elif want_sha and sha.hexdigest() != want_sha:
+                    last = "checksum mismatch"
+                elif got < 5_000_000:
+                    last = "downloaded file suspiciously small"
+                else:
+                    logging.info("update verified: %s bytes, sha256 ok", got)
+                    return True, ""
+                logging.warning("update attempt %s rejected: %s",
+                                attempt + 1, last)
+            except requests.RequestException as e:
+                last = f"network error ({type(e).__name__})"
+                logging.warning("update attempt %s failed: %s", attempt + 1, last)
+            time.sleep(2.0 * (attempt + 1))
+        return False, last
+
     def _update_worker(self):
-        """Download the new exe, then hand off to a script that swaps the
-        file once this process exits and relaunches the app."""
+        """Download the new exe, verify it, then hand off to a script that
+        swaps the file once this process exits and relaunches the app."""
         try:
             self._js(self.main_win, "app.updateState('downloading')")
-            r = requests.get(self._update_url, timeout=600, stream=True)
-            r.raise_for_status()
             new_path = os.path.join(CONFIG_DIR, "DialFlow_update.exe")
-            with open(new_path, "wb") as f:
-                for chunk in r.iter_content(1 << 16):
-                    f.write(chunk)
-            if os.path.getsize(new_path) < 5_000_000:
-                raise ValueError("downloaded file suspiciously small")
+            ok, why = self._download_update(new_path)
+            if not ok:
+                # leave the working install completely alone
+                try:
+                    os.remove(new_path)
+                except OSError:
+                    pass
+                logging.error("update aborted: %s", why)
+                self._js(self.main_win,
+                         f"app.updateState('failed', {json.dumps(why)})")
+                self._notify("Update failed — nothing was changed",
+                             f"{why}. Dial Flow {APP_VERSION} is still "
+                             "installed; try again later.")
+                return
             cur = sys.executable
             bat = os.path.join(CONFIG_DIR, "update.bat")
-            # the swap races this process's own exit — Windows keeps the exe
-            # locked until every thread is gone, so retry for ~30s instead of
-            # failing once and silently relaunching the OLD build
+            # The swap races this process's own exit — Windows keeps the exe
+            # locked until every thread is gone, so retry for ~45s rather
+            # than failing once and silently relaunching the OLD build.
+            #
+            # Then KEEP the old exe as .prev and pause before launching. A
+            # freshly written unsigned exe is often still held by Defender's
+            # scan; launching into that produced a one-shot "Failed to load
+            # Python DLL ... _MEIxxxx\\python312.dll" because the onefile
+            # archive could not finish unpacking. If the new build will not
+            # start at all, .prev is a working build to fall back to.
+            prev = os.path.join(os.path.dirname(cur), "DialFlow_prev.exe")
+            # Paths go in through the ENVIRONMENT, never interpolated into
+            # the script: a user profile like C:\Users\محمد cannot be encoded
+            # in the ASCII/OEM codepage cmd.exe reads .bat files in, and the
+            # write raised UnicodeEncodeError AFTER the whole 34MB download.
             with open(bat, "w", encoding="ascii") as f:
                 f.write('@echo off\n'
                         'ping -n 4 127.0.0.1 >nul\n'
                         'set RETRY=0\n'
                         ':retry\n'
-                        f'move /y "{new_path}" "{cur}" >nul 2>&1\n'
-                        'if not errorlevel 1 goto done\n'
+                        'del /q "%DF_PREV%" >nul 2>&1\n'
+                        'move /y "%DF_CUR%" "%DF_PREV%" >nul 2>&1\n'
+                        'if not errorlevel 1 goto swap\n'
                         'set /a RETRY+=1\n'
-                        'if %RETRY% GEQ 15 goto done\n'
-                        'ping -n 3 127.0.0.1 >nul\n'
+                        'if %RETRY% GEQ 15 goto fail\n'
+                        'ping -n 4 127.0.0.1 >nul\n'
                         'goto retry\n'
-                        ':done\n'
-                        f'start "" "{cur}"\n'
+                        ':swap\n'
+                        'move /y "%DF_NEW%" "%DF_CUR%" >nul 2>&1\n'
+                        'if errorlevel 1 goto restore\n'
+                        'ping -n 3 127.0.0.1 >nul\n'
+                        'start "" "%DF_CUR%"\n'
+                        'goto end\n'
+                        ':restore\n'
+                        'move /y "%DF_PREV%" "%DF_CUR%" >nul 2>&1\n'
+                        ':fail\n'
+                        'start "" "%DF_CUR%"\n'
+                        ':end\n'
                         'del "%~f0"\n')
             import subprocess
-            subprocess.Popen(["cmd", "/c", bat],
+            env = dict(os.environ, DF_CUR=cur, DF_NEW=new_path, DF_PREV=prev)
+            subprocess.Popen(["cmd", "/c", bat], env=env,
                              creationflags=0x08000000)  # CREATE_NO_WINDOW
             logging.info("self-update handoff started")
             time.sleep(0.5)
@@ -1614,12 +1777,32 @@ class DialFlow:
         except Exception:
             logging.exception("self-update failed")
             self._js(self.main_win, "app.updateState('failed')")
+            self._notify("Update failed — nothing was changed",
+                         f"Dial Flow {APP_VERSION} is still installed.")
 
     # ---------- engine wiring ----------
 
+    def _keep_cancelled_take(self, audio):
+        """A cancelled recording is still saved and listed, so 'cancel' can
+        never be the click that destroys minutes of speech."""
+        try:
+            t0 = time.time()
+            buf = io.BytesIO()
+            sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
+            name = self.engine._keep_audio(buf.getvalue(), t0)
+            self._on_transcript({
+                "ts": t0, "lang": self.engine.language, "text": "",
+                "secs": round(len(audio) / SAMPLE_RATE, 1), "words": 0,
+                "latency": 0, "cleaned": False, "raw": "", "audio": name,
+                "app": "general", "failed": "Cancelled — audio kept",
+            })
+        except Exception:
+            logging.exception("keeping cancelled take failed")
+
     def _boot_engine(self, key):
         self.engine = Engine(key, self.settings, self._on_state,
-                             self._on_transcript, self._on_language)
+                             self._on_transcript, self._on_language,
+                             self._keep_cancelled_take)
         self._bind_hotkeys()
         threading.Thread(target=self._level_pusher, daemon=True).start()
         threading.Thread(target=self._pill_follower, daemon=True).start()
@@ -1643,11 +1826,34 @@ class DialFlow:
                 keyboard.on_release_key(ck, lambda e: self.engine.stop_command(),
                                         suppress=False)
         else:
-            keyboard.add_hotkey(rk, self.engine.toggle_recording, suppress=False)
+            keyboard.add_hotkey(rk, self._debounced(self.engine.toggle_recording),
+                                suppress=False)
             if ck and ck != rk:
-                keyboard.add_hotkey(ck, self.engine.toggle_command,
+                keyboard.add_hotkey(ck, self._debounced(self.engine.toggle_command),
                                     suppress=False)
-        keyboard.add_hotkey(lk, self.engine.toggle_language, suppress=False)
+        keyboard.add_hotkey(lk, self._debounced(self.engine.toggle_language),
+                            suppress=False)
+        if ck and ck == rk:
+            logging.warning("command key %s collides with record key — "
+                            "command mode is unavailable", ck)
+            self._js(self.main_win, "app.keyClash(true)")
+        else:
+            self._js(self.main_win, "app.keyClash(false)")
+
+    @staticmethod
+    def _debounced(fn, gap=0.4):
+        """Windows repeats KEY_DOWN while a key is held, and keyboard's
+        hotkey handler fires on every repeat — so resting on F9 toggled
+        recording on/off dozens of times. Ignore repeats inside `gap`."""
+        state = {"t": 0.0}
+
+        def wrapped(*_a):
+            now = time.time()
+            if now - state["t"] < gap:
+                return
+            state["t"] = now
+            fn()
+        return wrapped
 
     def _js(self, win, code):
         if win is None or self.quitting:
@@ -1657,31 +1863,46 @@ class DialFlow:
         except Exception:
             pass
 
-    @staticmethod
-    def _apply_pill_exstyle(hwnd):
-        """NOACTIVATE (never steal focus) + TOOLWINDOW (never appear in the
-        taskbar or alt-tab). Windows only re-evaluates taskbar presence when
-        the window is next shown, so this must land while it is still
-        hidden — see _hide_pill_from_taskbar."""
+    def _apply_pill_exstyle(self, hwnd):
+        """Make the pill a HUD, not a second app.
+
+        NOACTIVATE  - never steal focus from the field being dictated into.
+        TOOLWINDOW  - keep it out of the taskbar and alt-tab.
+        ~APPWINDOW  - MUST be cleared: pywebview's WinForms host sets
+                      WS_EX_APPWINDOW, and APPWINDOW FORCES a taskbar button
+                      even when TOOLWINDOW is set. Setting TOOLWINDOW alone
+                      looked correct and changed nothing, which is why the
+                      bubble still showed up as its own window.
+
+        The shell only re-evaluates taskbar membership when a window is
+        shown, so an already-visible pill is bounced once to apply it."""
         GWL_EXSTYLE = -20
+        NOACTIVATE, TOOLWINDOW, APPWINDOW = 0x08000000, 0x00000080, 0x00040000
         u32 = ctypes.windll.user32
         ex = u32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-        u32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE,
-                              ex | 0x08000000 | 0x00000080)
+        want = (ex | NOACTIVATE | TOOLWINDOW) & ~APPWINDOW
+        if want == ex:
+            return
+        u32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want)
+        if u32.IsWindowVisible(hwnd):
+            u32.ShowWindow(hwnd, 0)   # SW_HIDE
+            u32.ShowWindow(hwnd, 8)   # SW_SHOWNA — visible, never activated
+        logging.info("pill ex-style 0x%08X -> 0x%08X", ex, want)
 
     def _hide_pill_from_taskbar(self):
-        """Force the pill's native handle while it is still hidden and stamp
-        the ex-style on it. Doing this only after the first show() leaves a
-        taskbar button behind for the rest of the session."""
+        """Best-effort pre-show stamp. pywebview does not create the native
+        window until the first show(), so this usually no-ops on a hidden
+        pill and _round_pill applies it right after the first show."""
         try:
-            h = self.pill_win.native.Handle
+            native = self.pill_win.native
+            if native is None:
+                return
+            h = native.Handle
             hwnd = int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
             self._apply_pill_exstyle(hwnd)
             self._pill_hwnd = hwnd
-            logging.info("pill ex-style applied pre-show")
         except Exception:
-            logging.exception("pre-show pill ex-style failed "
-                              "(will retry after first show)")
+            logging.debug("pre-show pill ex-style unavailable", exc_info=True)
 
     def _round_pill(self, attempt=0):
         """Round the pill via the DWM compositor — GDI window regions are
@@ -1713,6 +1934,9 @@ class DialFlow:
             # the "it's a whole separate tab" complaint.
             self._apply_pill_exstyle(phwnd)
             self._pill_hwnd = phwnd  # cached for the native animator
+            # re-assert every time: the WinForms host can restore
+            # WS_EX_APPWINDOW when the window is re-shown
+            self._apply_pill_exstyle(phwnd)
             try:
                 # dark form backing — kills the white fringe that peeks out
                 # around the web content at tiny sizes / during resizes.
@@ -1759,22 +1983,27 @@ class DialFlow:
         u32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi))
         return mi.rcWork.l, mi.rcWork.t, mi.rcWork.r, mi.rcWork.b
 
-    def _pill_anchor(self):
+    def _pill_anchor(self, size=None):
         """(center_x, bottom_y) for the docked corner the user chose. The
-        pill still follows across monitors — it just keeps ITS corner."""
+        pill still follows across monitors — it just keeps ITS corner.
+
+        `size` MUST be the size the pill will BE, not the one it currently
+        has: the anchor centres left/right docks on the width, so animating
+        with the pre-resize width made a side-docked pill grow off the screen
+        edge and then snap back when the follower corrected it."""
         try:
             l, t, r, b = self._work_area()
             pos = self.settings.get("pill_pos", "bottom-center")
             vert, _, horiz = pos.partition("-")
             pad = PILL_PAD
-            w, _h = getattr(self, "_pill_wh", (MINI_W, MINI_H))
+            w, h = size or getattr(self, "_pill_wh", (MINI_W, MINI_H))
             if horiz == "left":
                 cx = l + pad + w // 2
             elif horiz == "right":
                 cx = r - pad - w // 2
             else:
                 cx = l + (r - l) // 2
-            by = (t + pad + PILL_H) if vert == "top" else (b - pad)
+            by = (t + pad + h) if vert == "top" else (b - pad)
             return cx, by
         except Exception:
             return None
@@ -1797,9 +2026,9 @@ class DialFlow:
         return f"{vert}-{horiz}"
 
     def _move_pill(self):
-        anchor = self._pill_anchor()
+        w, h = getattr(self, "_pill_wh", (MINI_W, MINI_H))
+        anchor = self._pill_anchor((w, h))
         if anchor and self.pill_win is not None:
-            w, h = getattr(self, "_pill_wh", (MINI_W, MINI_H))
             try:
                 self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
             except Exception:
@@ -1831,9 +2060,7 @@ class DialFlow:
             if pos != self.settings.get("pill_pos"):
                 self.settings["pill_pos"] = pos
                 self.settings.save()
-                self._js(self.main_win,
-                         f"app.pillPos({json.dumps(pos)})")
-            logging.info("pill docked %s", pos)
+                logging.info("pill docked %s", pos)
         except Exception:
             logging.exception("pill drag failed")
         finally:
@@ -1849,9 +2076,11 @@ class DialFlow:
         self._show_main()
 
     def _busy(self):
-        return (self.engine is not None
-                and (self.engine.recording
-                     or getattr(self, "_pill_processing", False)))
+        """Any state that owns the expanded pill — including the failure
+        hold, which a hover-out used to shrink out from under."""
+        return (getattr(self, "_pill_failing", False)
+                or getattr(self, "_pill_processing", False)
+                or (self.engine is not None and self.engine.recording))
 
     def pill_hover_in(self):
         """Grow so the label and controls have room. This has to work DURING
@@ -1864,18 +2093,26 @@ class DialFlow:
                          daemon=True).start()
 
     def pill_hover_out(self):
-        if not getattr(self, "_hover_grown", False) or \
-                getattr(self, "_pill_dragging", False):
+        if not getattr(self, "_hover_grown", False):
             return
+        # clear the flag even mid-drag, otherwise the pill stays stuck at
+        # hover size forever while the JS believes it is no longer hovered
         self._hover_grown = False
+        if getattr(self, "_pill_dragging", False):
+            return
         # back to whichever size the engine state owns
         threading.Thread(target=self._animate_pill, args=(self._busy(),),
                          daemon=True).start()
 
     def _pill_follower(self):
+        """Keeps the pill on the monitor the cursor is on. It must NOT run
+        while the user is dragging — it was re-anchoring every 0.35s, which
+        teleported the pill back mid-drag and meant the drop position read
+        as unchanged, so it never docked anywhere new."""
         while not self.quitting:
-            if getattr(self, "_pill_visible", False) and \
-                    not getattr(self, "_pill_animating", False):
+            if (getattr(self, "_pill_visible", False)
+                    and not getattr(self, "_pill_animating", False)
+                    and not getattr(self, "_pill_dragging", False)):
                 self._move_pill()
             time.sleep(0.35)
 
@@ -1901,23 +2138,29 @@ class DialFlow:
 
         expand: True -> recording pill, False -> idle bubble, "hover" ->
         the slightly wider size that fits the label and controls."""
-        self._anim_token = getattr(self, "_anim_token", 0) + 1
-        token = self._anim_token
         if expand == "hover":
             end = (HOVER_W, HOVER_H)
         elif expand:
             end = (PILL_W, PILL_H)
         else:
             end = (MINI_W, MINI_H)
+        # bump the token only once we know we will actually animate: bumping
+        # before the early-outs below cancelled a running animation and left
+        # _pill_animating stuck True, which froze the follower and every
+        # later resize
         expand = bool(expand)
         start = getattr(self, "_pill_wh", (MINI_W, MINI_H))
         if start == end:
             return
-        anchor = self._pill_anchor()
+        # anchor for the DESTINATION size, so a side-docked pill grows
+        # against its screen edge instead of drifting off it
+        anchor = self._pill_anchor(end)
         hwnd = getattr(self, "_pill_hwnd", None)
         if anchor is None or self.pill_win is None:
             self._pill_wh = end
             return
+        self._anim_token = getattr(self, "_anim_token", 0) + 1
+        token = self._anim_token
         self._pill_animating = True
         try:
             if expand:
@@ -2010,6 +2253,8 @@ class DialFlow:
             return
         if not self.settings.get("idle_pill", True):
             return
+        if self._busy():
+            return  # a take is live — do not shrink its HUD to a bubble
         try:
             prev_fg = ctypes.windll.user32.GetForegroundWindow()
             self.pill_win.show()
@@ -2017,6 +2262,8 @@ class DialFlow:
             self.pill_win.resize(MINI_W, MINI_H)
             self._pill_wh = (MINI_W, MINI_H)
             self._js(self.pill_win, "app.mode('mini')")
+            self._js(self.pill_win,
+                     f"app.reckey({json.dumps(self.settings['record_key'])})")
             self._move_pill()
             self._pill_visible = True
             threading.Timer(0.05, self._restore_focus, args=(prev_fg,)).start()
@@ -2059,10 +2306,13 @@ class DialFlow:
                     threading.Thread(target=self._pill_fail, args=(detail,),
                                      daemon=True).start()
                 elif getattr(self, "_pill_processing", False) and state == "idle":
-                    # designed T3 exit: success flash → empty shrink → breathe
+                    # designed T3 exit: success flash → empty shrink → breathe.
+                    # A cancel arrives as ("idle", "Cancelled") too — it must
+                    # NOT play the success flash.
                     self._pill_processing = False
-                    threading.Thread(target=self._pill_settle, args=(True,),
-                                     daemon=True).start()
+                    threading.Thread(
+                        target=self._pill_settle,
+                        args=(detail != "Cancelled",), daemon=True).start()
                 else:
                     self._pill_processing = False
                     self._pill_to_idle()
@@ -2082,6 +2332,7 @@ class DialFlow:
 
     def _pill_fail(self, detail):
         """Hold a readable failure on the pill, then settle back to idle."""
+        self._pill_failing = True
         try:
             msg = (detail or "Transcription failed").split(" — ")[0]
             self._animate_pill(True)
@@ -2091,15 +2342,12 @@ class DialFlow:
                                      and self.engine.recording):
                     return
                 time.sleep(0.1)
+            self._pill_failing = False
             self._pill_settle(False)
         except Exception:
             logging.exception("pill fail state failed")
-
-    def _hide_pill(self):
-        try:
-            self.pill_win.hide()
-        except Exception:
-            pass
+        finally:
+            self._pill_failing = False
 
     @staticmethod
     def _restore_focus(prev_hwnd):
@@ -2207,6 +2455,8 @@ class DialFlow:
         if self.quitting:
             return
         self.quitting = True
+        if self.engine is not None:
+            self.engine.quitting = True
         try:
             keyboard.unhook_all()
         except Exception:
