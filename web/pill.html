@@ -1,0 +1,307 @@
+<!DOCTYPE html><html><head><style>
+*{margin:0;padding:0}html,body{background:#171320;overflow:hidden}
+body{font-family:'Segoe UI',sans-serif;height:100vh;box-sizing:border-box;
+position:relative;border:1px solid rgba(255,248,235,.26);border-radius:8px}
+/* :not(.hov) — at hover size the pill must keep the full 8px frame, not the
+   tiny bubble's 4px borderless one */
+body.mini:not(.hov){border:none;border-radius:4px;
+box-shadow:inset 0 0 0 1px rgba(255,248,235,.16)}
+/* design 2a keyframes — authoritative */
+@keyframes pillBreathe{0%,100%{opacity:.3;transform:scaleX(1)}50%{opacity:.75;transform:scaleX(1.12)}}
+@keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes pillDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.72);opacity:.55}}
+@keyframes pillShim{0%,100%{opacity:.18}50%{opacity:.9}}
+@keyframes pillSpin{to{transform:rotate(360deg)}}
+@keyframes pillPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes pillRise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pillFlash{0%,46%{opacity:1}100%{opacity:0}}
+/* layers */
+.layer{position:absolute;inset:0;display:flex;align-items:center;
+justify-content:center;gap:8px}
+#core{width:24px;height:6px;border-radius:3px;
+background:radial-gradient(closest-side,rgba(180,156,250,.95),rgba(108,85,232,.4) 65%,rgba(108,85,232,0));
+animation:coreIn .4s ease-out both,pillBreathe 3.6s ease-in-out .4s infinite}
+#recwash{position:absolute;inset:0;border-radius:7px;
+box-shadow:inset 0 0 12px rgba(242,107,94,.18)}
+#flashrim{position:absolute;inset:0;border-radius:7px;
+box-shadow:inset 0 0 10px rgba(212,198,255,.45);animation:pillFlash .3s ease-out both}
+.dotwrap{display:flex;animation:pillPop .12s ease-out .08s both}
+.dotwrap i{width:9px;height:9px;border-radius:999px;background:#F26B5E;display:block;
+box-shadow:0 0 8px rgba(242,107,94,.5);
+animation:pillDot 1.4s ease-in-out .2s infinite}
+#t{font-size:13px;font-weight:600;color:#F7F4EC;font-variant-numeric:tabular-nums;
+animation:pillRise .14s ease-out .12s both}
+#wave{display:flex;align-items:center;gap:2px;animation:pillRise .16s ease-out .16s both}
+#wave i{width:2px;height:2px;border-radius:1px;background:#FF8B7C;display:block}
+.pspin{display:flex;animation:pillPop .12s ease-out .06s both}
+.pspin i{width:13px;height:13px;border-radius:999px;display:block;
+border:2px solid rgba(156,134,246,.25);border-top-color:#9C86F6;
+animation:pillSpin .8s linear infinite}
+#pdots{display:flex;align-items:center;gap:3.5px;animation:pillRise .16s ease-out .1s both}
+#pdots i{width:2.5px;height:2.5px;border-radius:999px;background:#8F86B8;display:block;
+animation:pillShim 1.32s ease-in-out infinite}
+/* hover controls + failure state */
+#hov-l{gap:9px;padding:0 10px;cursor:grab}
+#hov-l:active{cursor:grabbing}
+#hov-t{flex:1;font-size:11.5px;font-weight:600;color:#EFE9DC;white-space:nowrap;
+overflow:hidden;text-overflow:ellipsis;text-align:left}
+.pbtn{width:22px;height:22px;flex:none;border:none;border-radius:6px;cursor:pointer;
+background:rgba(255,255,255,.08);color:#EFE9DC;display:flex;align-items:center;
+justify-content:center;padding:0;transition:background .14s,color .14s}
+.pbtn:hover{background:rgba(255,255,255,.18)}
+.pbtn.warn:hover{background:rgba(242,107,94,.32);color:#FFD9D3}
+#grip{width:9px;height:14px;flex:none;opacity:.5;
+background:radial-gradient(circle,#9C86F6 1px,transparent 1.2px);
+background-size:4.5px 4.5px}
+#fail-l{gap:8px;padding:0 10px}
+#fail-l b{font-size:11.5px;font-weight:600;color:#F8A79D;white-space:nowrap;
+min-width:0;overflow:hidden;text-overflow:ellipsis}
+#failwash{position:absolute;inset:0;border-radius:7px;
+box-shadow:inset 0 0 14px rgba(242,107,94,.3)}
+/* state visibility */
+.layer,#recwash,#flashrim,#failwash{display:none}
+body.mini #core-l{display:flex}
+body.rec #rec-l{display:flex}
+body.rec #recwash{display:block}
+body.processing #proc-l{display:flex}
+body.flash #proc-l{display:flex}
+body.flash #flashrim{display:block}
+body.flash .pspin{display:none}
+body.flash #pdots{animation:none}
+body.flash #pdots i{background:#C9BEFF;animation:pillFlash .3s ease-out both}
+/* expanded panel: status + dock picker */
+#panel-l{flex-direction:column;align-items:stretch;gap:9px;padding:11px 12px;
+justify-content:flex-start}
+#panel-l .ph{display:flex;align-items:center;gap:8px}
+#panel-l .ph b{flex:1;min-width:0;font-size:11.5px;font-weight:600;
+color:#EFE9DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-l .plab{font-size:9px;font-weight:700;letter-spacing:.1em;
+text-transform:uppercase;color:#8F86B8}
+#dock{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#dock button{height:38px;border:1px solid rgba(255,255,255,.10);border-radius:7px;
+background:rgba(255,255,255,.05);cursor:pointer;padding:0;position:relative;
+transition:background .14s,border-color .14s}
+#dock button:hover{background:rgba(156,134,246,.28)}
+#dock button.on{background:rgba(156,134,246,.34);border-color:#9C86F6}
+/* each tile is a mini screen; the bar inside sits where the pill will sit,
+   and stands up for the side docks */
+#dock button i{display:block;position:absolute;border-radius:2px;
+background:#CFC6F5;transition:all .14s}
+#dock button[data-p=bottom] i{width:15px;height:4px;
+left:50%;transform:translateX(-50%);bottom:5px}
+#dock button[data-p=left] i{width:4px;height:15px;
+top:50%;transform:translateY(-50%);left:5px}
+#dock button[data-p=right] i{width:4px;height:15px;
+top:50%;transform:translateY(-50%);right:5px}
+/* ---- vertical (side-docked) layout ---- */
+body.vert #rec-l{flex-direction:column;gap:7px}
+body.vert #wave{flex-direction:column-reverse;gap:2px}
+body.vert #wave i{width:2px;height:2px}
+body.vert #t{font-size:10px;writing-mode:vertical-rl;transform:rotate(180deg)}
+body.vert #core{width:6px;height:22px;
+background:radial-gradient(closest-side,rgba(180,156,250,.95),rgba(108,85,232,.4) 65%,rgba(108,85,232,0))}
+body.vert #proc-l{flex-direction:column;gap:9px}
+body.vert #pdots{flex-direction:column;gap:3.5px}
+body.failed #fail-l{display:flex}
+body.failed #failwash{display:block}
+body.panel #core-l,body.panel #rec-l,body.panel #proc-l,
+body.panel #hov-l,body.panel #fail-l{display:none}
+body.panel #panel-l{display:flex}
+/* hover wins over every non-failure layer. These MUST be id-level selectors:
+   `body.hov .layer{display:none}` loses to `body.rec #rec-l{display:flex}`
+   on specificity, which left the timer and waveform painting through the
+   hover controls. */
+body.hov #core-l,body.hov #rec-l,body.hov #proc-l{display:none}
+body.hov #hov-l{display:flex}
+</style></head><body class="mini">
+<div id="recwash"></div><div id="flashrim"></div>
+<div class="layer" id="core-l"><div id="core"></div></div>
+<div class="layer" id="rec-l">
+ <span class="dotwrap"><i></i></span>
+ <div id="t">0:00</div>
+ <div id="wave"></div>
+</div>
+<div class="layer" id="proc-l" style="gap:9px">
+ <span class="pspin"><i></i></span>
+ <div id="pdots"></div>
+</div>
+<div class="layer" id="fail-l">
+ <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F26B5E"
+  stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/>
+  <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+ <b id="fail-t">Transcription failed</b>
+</div>
+<div class="layer" id="panel-l">
+ <div class="ph"><b id="panel-t">Idle</b>
+  <button class="pbtn" id="btn-panel-close" title="Close">
+   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2.6" stroke-linecap="round">
+    <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+ </div>
+ <div class="plab">Position</div>
+ <div id="dock">
+  <button data-p="left" title="Left edge"><i></i></button>
+  <button data-p="bottom" title="Bottom"><i></i></button>
+  <button data-p="right" title="Right edge"><i></i></button>
+ </div>
+ <div class="plab" id="panel-hint">Sides stand it upright</div>
+</div>
+<div class="layer" id="hov-l">
+ <div id="grip" title="Drag to move"></div>
+ <div id="hov-t">Idle</div>
+ <button class="pbtn" id="btn-panel" title="Position &amp; more">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+   stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/>
+   <line x1="3" y1="9" x2="21" y2="9"/></svg></button>
+ <button class="pbtn" id="btn-open" title="Open Dial Flow">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M14 4h6v6"/><path d="M20 4l-9 9"/>
+   <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+ <button class="pbtn warn" id="btn-cancel" title="Cancel">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+   stroke-width="2.6" stroke-linecap="round">
+   <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+</div>
+<script>
+let startedAt=0,lvl=0,disp=0,base='mini',hovering=false,busy=false;
+let panelOpen=false,dragging=false,dock='bottom',vertical=false;
+const H=[8,14,20,11,17,22,9,15,12,18,10,16];
+const wave=document.getElementById('wave');
+const bars=H.map(()=>{const b=document.createElement('i');
+wave.appendChild(b);return b;});
+const pd=document.getElementById('pdots');
+for(let i=0;i<12;i++){const d=document.createElement('i');
+d.style.animationDelay=(i*0.11)+'s';pd.appendChild(d);}
+function pyapi(fn){
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api[fn])
+  window.pywebview.api[fn]();
+}
+let RECKEY='F9';
+const LABEL={mini:()=>'Idle — press '+RECKEY,rec:()=>'Recording',
+ processing:()=>'Transcribing…',failed:()=>'Transcription failed',
+ '':()=>''};
+function paint(){
+ /* panel outranks hover, hover overlays the engine state, and failure
+    outranks hover so a failed take is never hidden by the cursor */
+ document.body.className=base
+  +(panelOpen?' panel':((hovering&&base!=='failed')?' hov':''))
+  +((vertical&&!panelOpen&&!(hovering&&base!=='failed'))?' vert':'');
+ const l=LABEL[base.split(' ')[0]];
+ const txt=l?l():'Idle';
+ document.getElementById('hov-t').textContent=txt;
+ document.getElementById('panel-t').textContent=txt;
+ document.getElementById('btn-cancel').style.display=busy?'flex':'none';
+}
+function setDock(p){
+ dock=p;
+ vertical=(p==='left'||p==='right');
+ document.querySelectorAll('#dock button').forEach(
+  b=>b.classList.toggle('on',b.dataset.p===p));
+ document.getElementById('panel-hint').textContent=
+  vertical?'Standing upright on the '+p+' edge':'Sides stand it upright';
+ paint();
+}
+function setPanel(on){
+ panelOpen=on;
+ if(on)hovering=false;
+ paint();
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_panel)
+  window.pywebview.api.pill_panel(on);
+}
+window.app={
+ start(ts){startedAt=ts;lvl=0;disp=0;base='rec';busy=true;paint();},
+ level(v){lvl=v;},
+ /* '' is a REAL state — the blank frame held while the window shrinks.
+    `m||'mini'` used to coerce it to mini, so the idle core painted at full
+    expanded width for the whole collapse. */
+ mode(m){base=(m===undefined||m===null)?'mini':m;
+  busy=(m==='processing');paint();},
+ done(){base='processing flash';busy=false;paint();},
+ failed(msg){base='failed';busy=false;
+  if(msg)document.getElementById('fail-t').textContent=msg;
+  paint();},
+ reckey(k){RECKEY=(k||'f9').toUpperCase();paint();},
+ pos(p){setDock(p);},
+ vert(on){vertical=!!on;paint();}
+};
+const body=document.body;
+body.addEventListener('mouseenter',()=>{
+ if(base==='failed'||panelOpen)return;
+ hovering=true;pyapi('pill_hover_in');paint();});
+body.addEventListener('mouseleave',()=>{
+ if(panelOpen||dragging)return;
+ hovering=false;pyapi('pill_hover_out');paint();});
+document.getElementById('btn-cancel').addEventListener('click',e=>{
+ e.stopPropagation();pyapi('pill_cancel');});
+document.getElementById('btn-open').addEventListener('click',e=>{
+ e.stopPropagation();pyapi('pill_open');});
+document.getElementById('btn-panel').addEventListener('click',e=>{
+ e.stopPropagation();setPanel(true);});
+document.getElementById('btn-panel-close').addEventListener('click',e=>{
+ e.stopPropagation();setPanel(false);});
+document.getElementById('dock').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-p]');if(!b)return;
+ e.stopPropagation();setDock(b.dataset.p);
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_set_pos)
+  window.pywebview.api.pill_set_pos(b.dataset.p);});
+document.getElementById('fail-l').addEventListener('click',()=>{
+ base='mini';paint();pyapi('pill_open');});
+
+/* ---- drag ----
+   WM_NCLBUTTONDOWN could not work from the JS bridge thread (ReleaseCapture
+   is per-thread, so WebView2 kept the pointer capture and the window never
+   really moved — every drop snapped back). Pointer events + explicit moves
+   are boring and reliable. */
+function startDrag(ev){
+ if(ev.button!==0||ev.target.closest('.pbtn')||ev.target.closest('#dock'))return;
+ ev.preventDefault();
+ const sx=ev.screenX,sy=ev.screenY;
+ let pending=null,raf=0;
+ dragging=true;
+ const api=(window.pywebview||{}).api;
+ if(!api||!api.pill_drag_start)return;
+ api.pill_drag_start();
+ const move=e=>{
+  pending=[e.screenX-sx,e.screenY-sy];
+  if(raf)return;
+  raf=requestAnimationFrame(()=>{raf=0;
+   if(pending&&api.pill_drag_move)api.pill_drag_move(pending[0],pending[1]);});
+ };
+ const up=()=>{
+  window.removeEventListener('pointermove',move);
+  window.removeEventListener('pointerup',up);
+  if(raf)cancelAnimationFrame(raf);
+  dragging=false;
+  if(api.pill_drag_end)api.pill_drag_end();
+ };
+ window.addEventListener('pointermove',move);
+ window.addEventListener('pointerup',up);
+}
+document.getElementById('hov-l').addEventListener('pointerdown',startDrag);
+document.querySelector('#panel-l .ph').addEventListener('pointerdown',startDrag);
+function raf(){
+ if(document.body.classList.contains('rec')){
+  if(startedAt){
+   const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
+   document.getElementById('t').textContent=
+    Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  }
+  /* Wispr-style wave: bars are driven by the real mic level pushed from
+     Python — silence collapses them to a flat 2px line, speech lifts them
+     with a slight per-bar wobble (wobble scales with the level too, so a
+     quiet room never shimmies) */
+  const target=Math.min(1,lvl*9);
+  disp+=(target-disp)*(target>disp?0.4:0.15);
+  const t=performance.now()/1000;
+  bars.forEach((b,i)=>{
+   const wig=0.7+0.3*Math.sin(t*9+i*1.7);
+   const v=(2+disp*(H[i]-2)*wig)+'px';
+   /* standing up, the bars grow sideways instead of upwards */
+   if(vertical){b.style.width=v;b.style.height='2px';}
+   else{b.style.height=v;b.style.width='2px';}
+  });
+ }
+ requestAnimationFrame(raf);}
+requestAnimationFrame(raf);
+</script></body></html>
