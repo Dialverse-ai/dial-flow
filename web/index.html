@@ -4,32 +4,53 @@
 <meta charset="utf-8">
 <title>Yalla Flow</title>
 <style>
-:root{
-  --bg:#F7F3EC; --sidebar:#F1EBDF; --surface:#FFFFFF; --field:#FBF9F4; --tint:#F4EFE5;
-  --border:#E7DFCE; --border-strong:#D9CFBB; --divider:#F0EADC; --outer:#E0D7C5;
-  --text:#2E2A24; --text2:#6E675C; --muted:#9A9285; --faint:#B3A996;
+:root, :root[data-theme=light]{
+  color-scheme:light;
+  --bg:#FAFAF8; --surface:#FFFFFF; --field:#F4F4F6; --tint:#F1F1F4;
+  --border:#E8E8EC; --border-strong:#DCDCE2; --divider:#F0F0F3;
+  --text:#1B1B20; --text2:#5F5F6B; --muted:#8E8E99; --faint:#B4B4BE;
   --accent:#6C55E8; --accent-hover:#5A45D0; --accent-text:#5240C9;
-  --accent-tint:#EEEAFC; --accent-tint-b:#DED6F9; --accent-soft:#E4DBF9;
-  --rec:#D0453E; --rec-tint:#FAE9E6; --rec-tint-b:#F0D2CC; --rec-text:#B23730;
-  --warn:#B07818; --warn-tint:#F7EED9; --warn-tint-b:#EADCBB; --warn-text:#8F6510;
-  --ok:#3E8E5A; --ok-tint:#E6F2E8; --ok-tint-b:#CFE5D4; --ok-text:#2F7A4C;
-  --meter-idle:#DED5C2;
-  --sh-card:0 1px 2px rgba(46,42,36,.05); --sh-chip:0 1px 2px rgba(46,42,36,.08);
-  --sh-pop:0 12px 32px -8px rgba(46,42,36,.25);
+  --accent-tint:#EFECFC; --accent-tint-b:#DFD8F9; --accent-soft:#E5DEFA;
+  --rec:#E0524A; --rec-tint:#FBEAE8; --rec-tint-b:#F2D3CF; --rec-text:#B23730;
+  --warn:#B07818; --warn-tint:#F8F0DE; --warn-tint-b:#EBDFC2; --warn-text:#8F6510;
+  --ok:#3E8E5A; --ok-tint:#E7F3EA; --ok-tint-b:#D0E6D6; --ok-text:#2F7A4C;
+  --meter-idle:#DFDFE5;
+  --sh-card:0 1px 2px rgba(27,27,32,.04),0 0 0 1px rgba(27,27,32,.01);
+  --sh-chip:0 1px 2px rgba(27,27,32,.08);
+  --sh-pop:0 12px 32px -8px rgba(27,27,32,.22);
+  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238E8E99' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --bg:#131316; --surface:#1C1C21; --field:#232329; --tint:#26262D;
+  --border:#2A2A32; --border-strong:#3A3A42; --divider:#26262C;
+  --text:#F1F1F4; --text2:#A6A6B2; --muted:#7C7C88; --faint:#55555E;
+  --accent:#8B76F0; --accent-hover:#9C8AF4; --accent-text:#A695F5;
+  --accent-tint:#2A2540; --accent-tint-b:#3A3358; --accent-soft:#332C52;
+  --rec:#F26B5E; --rec-tint:#3A2422; --rec-tint-b:#57302C; --rec-text:#F58A80;
+  --warn:#D89B3A; --warn-tint:#3A2F1B; --warn-tint-b:#57452A; --warn-text:#E5B36A;
+  --ok:#4CAF72; --ok-tint:#1F3327; --ok-tint-b:#2E4A38; --ok-text:#6BC98F;
+  --meter-idle:#3A3A42;
+  --sh-card:0 1px 2px rgba(0,0,0,.25),0 0 0 1px rgba(255,255,255,.02);
+  --sh-chip:0 1px 2px rgba(0,0,0,.35);
+  --sh-pop:0 12px 32px -8px rgba(0,0,0,.6);
+  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237C7C88' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
 html,body{height:100%;background:var(--bg);overflow:hidden}
-body{font-family:'Segoe UI','Segoe UI Variable',system-ui,sans-serif;color:var(--text);
-  -webkit-font-smoothing:antialiased;font-size:13px}
+body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;color:var(--text);
+  -webkit-font-smoothing:antialiased;font-size:13px;
+  transition:background .18s ease,color .18s ease}
 button{font-family:inherit;border:none;cursor:pointer;background:none;color:inherit}
 input,select{font-family:inherit;outline:none}
 svg{flex:none}
-.serif{font-family:Georgia,'Times New Roman',serif;font-weight:400}
+h1,.page-title,.hd{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif;
+  font-weight:650;letter-spacing:-.02em}
 ::-webkit-scrollbar{width:8px}
 ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:#C9BDA4}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{
-  outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(108,85,232,.14)}
+  outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @keyframes yfPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.55}}
 @keyframes yfSpin{to{transform:rotate(360deg)}}
@@ -39,16 +60,17 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 /* ===== setup ===== */
 #setup{flex-direction:column;align-items:center;justify-content:center;background:var(--bg)}
 .setup-box{display:flex;flex-direction:column;align-items:center;text-align:center;
-  animation:fadeUp .35s ease both}
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  box-shadow:var(--sh-card);padding:48px 56px;animation:fadeUp .35s ease both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .setup-box img{width:56px;height:56px}
-.setup-box h1{font-family:Georgia,serif;font-weight:400;font-size:30px;margin-top:18px}
+.setup-box h1{font-size:28px;margin-top:18px}
 .setup-box p{font-size:13px;line-height:1.65;color:var(--text2);margin-top:8px;max-width:380px}
-#key-input{width:380px;height:36px;padding:0 13px;background:var(--surface);
-  border:1px solid var(--outer);border-radius:8px;font-size:12.5px;color:var(--text);
+#key-input{width:380px;height:38px;padding:0 13px;background:var(--field);
+  border:1px solid var(--border-strong);border-radius:10px;font-size:12.5px;color:var(--text);
   margin-top:22px;-webkit-user-select:text;user-select:text;transition:border-color .14s,box-shadow .14s}
 #key-input::placeholder{color:var(--muted)}
-#key-input.bad{border-color:var(--rec);box-shadow:0 0 0 3px rgba(208,69,62,.12)}
+#key-input.bad{border-color:var(--rec);box-shadow:0 0 0 3px var(--rec-tint)}
 #key-err{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--rec-text);
   height:18px;margin-top:8px}
 .setup-link{font-size:11.5px;color:var(--muted);margin-top:4px}
@@ -58,32 +80,33 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 
 /* ===== buttons ===== */
 .btn-primary{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 17px;
-  background:var(--accent);border-radius:8px;font-size:12.5px;font-weight:600;color:#fff;
-  box-shadow:0 1px 2px rgba(46,42,36,.15);transition:background .14s ease,transform .1s}
+  background:var(--accent);border-radius:9px;font-size:12.5px;font-weight:600;color:#fff;
+  box-shadow:var(--sh-chip);transition:background .14s ease,transform .1s}
 .btn-primary:hover{background:var(--accent-hover)}
 .btn-primary:active{transform:scale(.97)}
 .btn-primary:disabled{opacity:.45;cursor:default}
-.btn-ghost{height:34px;display:inline-flex;align-items:center;padding:0 15px;border-radius:8px;
+.btn-ghost{height:34px;display:inline-flex;align-items:center;padding:0 15px;border-radius:9px;
   font-size:12.5px;font-weight:600;color:var(--text2);transition:background .14s,color .14s}
-.btn-ghost:hover{background:var(--sidebar);color:var(--text)}
+.btn-ghost:hover{background:var(--tint);color:var(--text)}
 .btn-2nd{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 13px;
-  background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:9px;
   font-size:12.5px;font-weight:600;color:var(--text);transition:background .14s}
 .btn-2nd:hover{background:var(--field)}
 
 /* ===== shell ===== */
 #main{flex-direction:row}
-#side{width:210px;flex:none;background:var(--sidebar);border-right:1px solid var(--border);
+#side{width:216px;flex:none;background:var(--bg);border-right:1px solid var(--border);
   display:flex;flex-direction:column;padding:16px 12px 14px}
 .brand{display:flex;align-items:center;gap:9px;padding:2px 6px}
 .brand img{width:28px;height:28px}
-.brand .n{font-family:Georgia,serif;font-size:16px;color:var(--text)}
+.brand .n{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
+  letter-spacing:-.01em;font-size:15px;color:var(--text)}
 .brand .s{font-size:10px;color:var(--muted);letter-spacing:.3px}
 .nav{display:flex;flex-direction:column;gap:2px;margin-top:24px}
-.nav-item{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:8px;
+.nav-item{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:9px;
   font-size:13px;font-weight:600;color:var(--text2);width:100%;text-align:left;
   transition:background .14s ease,color .14s ease}
-.nav-item:hover{background:rgba(255,255,255,.6);color:var(--text)}
+.nav-item:hover{background:var(--tint);color:var(--text)}
 .nav-item.on{background:var(--surface);box-shadow:var(--sh-chip);color:var(--text)}
 .nav-item svg{stroke:var(--muted)}
 .nav-item.on svg{stroke:var(--accent)}
@@ -98,41 +121,44 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 .page{flex:1;display:none;flex-direction:column;padding:20px 26px 22px;min-height:0;overflow:hidden}
 .page.on{display:flex}
 .page-date{font-size:12px;color:var(--muted)}
-.page-title{font-family:Georgia,serif;font-size:29px;margin-top:3px}
+.page-title{font-size:26px;margin-top:3px}
 .section-label{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted)}
 
 /* ===== dictation ===== */
 #dict-cols{flex:1;display:flex;gap:22px;min-height:0;margin-top:0}
 #dict-left{flex:1;min-width:0;display:flex;flex-direction:column}
 .status-card{margin-top:16px;background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;box-shadow:var(--sh-card);flex:none}
+  border-radius:14px;box-shadow:var(--sh-card);flex:none}
 .status-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px}
 .spill{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;
   border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent;
   transition:background .2s,border-color .2s,color .2s}
-.spill.idle{background:var(--tint);border-color:var(--outer);color:var(--text2)}
+.spill.idle{background:var(--tint);border-color:var(--border-strong);color:var(--text2)}
 .spill.idle .dot{background:var(--faint)}
 .spill.recording{background:var(--rec-tint);border-color:var(--rec-tint-b);color:var(--rec-text)}
 .spill.recording .dot{background:var(--rec);animation:yfPulse 1.5s ease-in-out infinite}
+.spill.command{background:var(--accent-tint);border-color:var(--accent-tint-b);color:var(--accent-text)}
+.spill.command .dot{background:var(--accent);animation:yfPulse 1.5s ease-in-out infinite}
 .spill.transcribing{background:var(--warn-tint);border-color:var(--warn-tint-b);color:var(--warn-text)}
 .spill.cleaning{background:var(--accent-tint);border-color:var(--accent-tint-b);color:var(--accent-text)}
 .spill.error{background:var(--rec-tint);border-color:var(--rec-tint-b);color:var(--rec-text)}
 .spill .dot{width:8px;height:8px;border-radius:999px}
-.spill .spin{width:12px;height:12px;border-radius:999px;border:2px solid rgba(143,101,16,.25);
+.spill .spin{width:12px;height:12px;border-radius:999px;border:2px solid var(--warn-tint-b);
   border-top-color:var(--warn);animation:yfSpin .8s linear infinite}
 .spill .timer{font-variant-numeric:tabular-nums;color:var(--text)}
 #meter{display:flex;align-items:center;gap:2.5px;height:22px}
 #meter i{width:2.5px;border-radius:2px;background:var(--meter-idle);height:8px;
   transition:background .3s ease}
 #meter.live i{background:var(--rec)}
-.status-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;
-  border-top:1px solid var(--divider);padding:9px 14px}
-.seg{display:flex;background:var(--tint);border:1px solid var(--border);border-radius:8px;
+.status-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;border-top:1px solid var(--divider);padding:9px 14px}
+.seg{display:flex;background:var(--field);border:1px solid var(--border);border-radius:9px;
   padding:2px;gap:2px}
 .seg button{height:24px;padding:0 11px;border-radius:6px;font-size:12px;font-weight:600;
   color:var(--text2);transition:background .14s,color .14s,box-shadow .14s;white-space:nowrap}
 .seg button:hover{color:var(--text)}
 .seg button.on{background:var(--surface);box-shadow:var(--sh-chip);color:var(--text)}
+.seg-tag{font-size:10.5px;font-weight:600;letter-spacing:.6px;color:var(--muted);margin-right:6px}
 .flow-ctl{display:flex;align-items:center;gap:9px}
 .flow-ctl .star{font-size:12px;font-weight:600;color:var(--accent-text)}
 .flow-ctl .fl{font-size:12.5px;font-weight:600}
@@ -140,31 +166,32 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 .switch{width:36px;height:20px;border-radius:999px;background:var(--border-strong);
   position:relative;cursor:pointer;transition:background .18s ease;flex:none}
 .switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;
-  border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(46,42,36,.25);
+  border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.28);
   transition:left .16s cubic-bezier(.34,1.3,.64,1)}
 .switch.on{background:var(--accent)}
 .switch.on::after{left:18px}
 .tools-row{margin-top:16px;display:flex;align-items:center;gap:10px;flex:none}
 .search-wrap{flex:1;height:32px;display:flex;align-items:center;gap:8px;padding:0 11px;
-  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:9px;
   transition:border-color .14s,box-shadow .14s}
-.search-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,85,232,.14)}
+.search-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .search-wrap input{flex:1;border:none;background:none;font-size:12.5px;color:var(--text);
   -webkit-user-select:text;user-select:text}
 .search-wrap input::placeholder{color:var(--muted)}
+.search-wrap svg{stroke:var(--muted)}
 kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radius:5px;
-  background:var(--surface);border:1px solid var(--outer);font-size:10.5px;font-weight:600;
+  background:var(--surface);border:1px solid var(--border-strong);font-size:10.5px;font-weight:600;
   color:var(--text2);font-family:inherit}
 .hints{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap}
 #feed{margin-top:14px;flex:1;min-height:0;overflow-y:auto;padding-right:2px}
 .day-label{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted);
   padding:14px 14px 7px}
 .day-label:first-child{padding-top:0}
-.row{display:flex;gap:12px;padding:11px 14px;border-radius:10px;align-items:flex-start;
+.row{display:flex;gap:12px;padding:11px 14px;border-radius:12px;align-items:flex-start;
   position:relative;transition:background .14s ease,box-shadow .14s ease;
   animation:rowIn .25s ease both}
 @keyframes rowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.row:hover,.row.menu-open{background:var(--surface);box-shadow:0 1px 3px rgba(46,42,36,.07)}
+.row:hover,.row.menu-open{background:var(--surface);box-shadow:var(--sh-card)}
 /* each row is its own stacking context (entry animation), so later rows paint
    over an open menu unless the open row is lifted above its siblings */
 .row.menu-open{z-index:50}
@@ -180,24 +207,26 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 .row .hov{display:none;align-items:center;gap:6px}
 .row:hover .hov,.row.menu-open .hov{display:flex}
 .copy-btn{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
-  border-radius:6px;background:var(--tint);border:1px solid var(--outer);color:var(--text2);
+  border-radius:7px;background:var(--field);border:1px solid var(--border-strong);color:var(--text2);
   font-size:11px;font-weight:600;transition:background .14s,color .14s}
-.copy-btn:hover{background:#EDE6D6;color:var(--text)}
+.copy-btn:hover{background:var(--tint);color:var(--text)}
 .copy-btn.done{background:var(--ok-tint);border-color:var(--ok-tint-b);color:var(--ok-text)}
 .dots-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
-  border-radius:6px;color:var(--muted);transition:background .14s,color .14s}
-.dots-btn:hover,.row.menu-open .dots-btn{background:#EDE6D6;color:var(--text)}
+  border-radius:7px;color:var(--muted);transition:background .14s,color .14s}
+.dots-btn:hover,.row.menu-open .dots-btn{background:var(--tint);color:var(--text)}
 .menu{position:absolute;top:42px;right:10px;z-index:20;width:198px;background:var(--surface);
-  border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-pop);padding:5px;
+  border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh-pop);padding:5px;
   display:flex;flex-direction:column;animation:menuIn .16s ease both}
 @keyframes menuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .menu button{height:32px;display:flex;align-items:center;gap:9px;padding:0 10px;
-  border-radius:6px;font-size:12.5px;color:var(--text);text-align:left;transition:background .12s}
+  border-radius:7px;font-size:12.5px;color:var(--text);text-align:left;transition:background .12s}
+.menu button svg{stroke:var(--text2)}
 .menu button:hover{background:var(--tint)}
 .menu button:disabled{opacity:.4;cursor:default}
 .menu button:disabled:hover{background:none}
 .menu .sep{height:1px;background:var(--divider);margin:5px 6px}
 .menu .danger{font-weight:600;color:var(--rec-text)}
+.menu .danger svg{stroke:var(--rec-text)}
 .menu .danger:hover{background:var(--rec-tint)}
 #empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;
   gap:14px;text-align:center;padding:0 60px}
@@ -205,46 +234,53 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 #empty .glyph{display:flex;align-items:flex-end;gap:4px;height:36px}
 #empty .glyph i{width:5px;border-radius:3px;background:var(--border-strong);
   animation:emptyWave 2.4s ease-in-out infinite}
-#empty .glyph i:nth-child(1){height:12px}
-#empty .glyph i:nth-child(2){height:22px;background:#C6B5F3;animation-delay:.15s}
+#empty .glyph i:nth-child(2){height:22px;background:var(--accent-soft);animation-delay:.15s}
 #empty .glyph i:nth-child(3){height:34px;background:var(--accent);animation-delay:.3s}
-#empty .glyph i:nth-child(4){height:22px;background:#C6B5F3;animation-delay:.45s}
+#empty .glyph i:nth-child(4){height:22px;background:var(--accent-soft);animation-delay:.45s}
+#empty .glyph i:nth-child(1){height:12px}
 #empty .glyph i:nth-child(5){height:12px;animation-delay:.6s}
 @keyframes emptyWave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.55)}}
-#empty h2{font-family:Georgia,serif;font-weight:400;font-size:22px}
+#empty h2{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
+  letter-spacing:-.01em;font-size:21px}
 #empty p{font-size:13px;line-height:1.65;color:var(--text2);max-width:340px}
 #empty .apps{font-size:11.5px;color:var(--muted)}
 #empty .apps b{color:var(--text2);font-weight:600}
 #dict-rail{width:258px;flex:none;display:flex;flex-direction:column;gap:14px;padding-top:56px}
-.rail-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+.rail-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
   box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column}
 .rail-stat{display:flex;flex-direction:column;gap:2px;padding:12px 0;
   border-bottom:1px solid var(--divider)}
 .rail-stat:last-child{border-bottom:none;padding-bottom:2px}
-.rail-stat .v{font-family:Georgia,serif;font-size:27px;font-variant-numeric:tabular-nums}
+.rail-stat .v{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
+  letter-spacing:-.02em;font-size:25px;font-variant-numeric:tabular-nums}
 .rail-stat .l{font-size:11.5px;color:var(--text2)}
-.tip-card{background:var(--tint);border:1px solid #E5DCCA;border-radius:12px;
+.tip-card{background:var(--tint);border:1px solid var(--border);border-radius:14px;
   padding:13px 15px;font-size:11.5px;line-height:1.8;color:var(--text2)}
+.tip-card b{color:var(--text);font-weight:600}
 
 /* ===== update banner ===== */
 #update-banner{display:none;margin-top:16px;background:var(--accent-tint);
-  border:1px solid var(--accent-tint-b);border-radius:12px;padding:12px 16px;
+  border:1px solid var(--accent-tint-b);border-radius:14px;padding:12px 16px;
   align-items:center;justify-content:space-between;gap:14px;flex:none;
   animation:rowIn .25s ease both}
 #update-banner.on{display:flex}
 #update-banner .ut{font-size:12.5px;font-weight:600;color:var(--accent-text)}
-#update-banner .us{font-size:11.5px;color:#5A5346;margin-top:2px}
+#update-banner .us{font-size:11.5px;color:var(--text2);margin-top:2px}
 
 /* ===== insights ===== */
 #page-insights{overflow-y:auto}
 .ins-grid{display:flex;gap:14px;margin-top:18px;flex:none}
-.ins-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+.ins-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
   box-shadow:var(--sh-card);padding:16px;display:flex;flex-direction:column;gap:3px;flex:1}
 .ins-card .k{font-size:10.5px;font-weight:600;letter-spacing:1.1px;color:var(--muted)}
-.ins-card .v{font-family:Georgia,serif;font-size:34px;font-variant-numeric:tabular-nums}
-.ins-card .v small{font-size:15px;color:var(--text2);font-family:Georgia,serif}
+.ins-card .v{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
+  letter-spacing:-.02em;font-size:30px;font-variant-numeric:tabular-nums}
+.ins-card .v small{font-size:14px;color:var(--text2);font-weight:600}
 .ins-card .s{font-size:11px;color:var(--text2)}
-.mix-bar{display:flex;height:14px;border-radius:999px;overflow:hidden}
+.gauge-track{stroke:var(--field)}
+.gauge-arc{stroke:var(--accent)}
+.gauge-txt{fill:var(--accent-text)}
+.mix-bar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--field)}
 .mix-legend{display:flex;gap:20px;font-size:11.5px;color:var(--text2)}
 .mix-legend .sw{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:6px}
 .heat-grid{display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;
@@ -257,12 +293,13 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 #page-dictionary{overflow-y:auto}
 .dic-wrap{max-width:734px;display:flex;flex-direction:column}
 .dic-hero{margin-top:18px;background:var(--accent-tint);border:1px solid var(--accent-tint-b);
-  border-radius:12px;padding:18px 20px;display:flex;align-items:center;
+  border-radius:14px;padding:18px 20px;display:flex;align-items:center;
   justify-content:space-between;gap:20px}
-.dic-hero .ht{font-family:Georgia,serif;font-size:18px}
-.dic-hero .hs{font-size:12.5px;line-height:1.6;color:#5A5346;max-width:420px;margin-top:4px}
+.dic-hero .ht{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-weight:650;
+  letter-spacing:-.01em;font-size:17px}
+.dic-hero .hs{font-size:12.5px;line-height:1.6;color:var(--text2);max-width:420px;margin-top:4px}
 .dic-list{margin-top:14px;background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;box-shadow:var(--sh-card);display:flex;flex-direction:column;overflow:hidden}
+  border-radius:14px;box-shadow:var(--sh-card);display:flex;flex-direction:column;overflow:hidden}
 .dic-row{display:flex;align-items:center;gap:14px;min-height:50px;padding:6px 16px;
   border-bottom:1px solid var(--divider);transition:background .12s}
 .dic-row:last-child{border-bottom:none}
@@ -273,7 +310,7 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 .dic-row .acts{display:none;gap:4px}
 .dic-row:hover .acts{display:flex}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
-  border-radius:6px;color:var(--text2);transition:background .12s,color .12s}
+  border-radius:7px;color:var(--text2);transition:background .12s,color .12s}
 .icon-btn:hover{background:var(--tint);color:var(--text)}
 .icon-btn.danger{color:var(--rec-text)}
 .icon-btn.danger:hover{background:var(--rec-tint)}
@@ -288,25 +325,25 @@ kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radi
 #page-settings{overflow-y:auto}
 .set-wrap{max-width:700px;display:flex;flex-direction:column}
 .set-card{margin-top:7px;background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;box-shadow:var(--sh-card);padding:0 16px}
+  border-radius:14px;box-shadow:var(--sh-card);padding:0 16px}
 .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
   min-height:50px;padding:9px 0}
 .set-row+.set-row{border-top:1px solid var(--divider)}
 .set-row .sl{font-size:13px;font-weight:600}
 .set-row .ss{font-size:11.5px;color:var(--muted);margin-top:2px}
-select{height:30px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--outer);
+select{height:30px;padding:0 30px 0 12px;background:var(--field);border:1px solid var(--border-strong);
   border-radius:8px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;
   -webkit-appearance:none;appearance:none;max-width:280px;text-overflow:ellipsis;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239A9285' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image:var(--sel-arrow);
   background-repeat:no-repeat;background-position:right 11px center;
-  transition:background .14s,border-color .14s}
+  transition:background-color .14s,border-color .14s}
 select:hover{background-color:var(--tint)}
 input[type=range]{-webkit-appearance:none;width:160px;height:4px;border-radius:999px;
-  background:linear-gradient(to right,var(--accent) var(--val,40%),var(--border) var(--val,40%));
+  background:linear-gradient(to right,var(--accent) var(--val,40%),var(--border-strong) var(--val,40%));
   cursor:pointer}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
   border-radius:999px;background:#fff;border:1px solid var(--border-strong);
-  box-shadow:0 1px 2px rgba(46,42,36,.2);transition:transform .12s}
+  box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .12s}
 input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
 .vol-val{font-size:11.5px;color:var(--text2);width:34px;text-align:right;
   font-variant-numeric:tabular-nums}
@@ -373,15 +410,27 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
               <span id="meter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
             </div>
             <div class="status-bottom">
-              <div class="seg" id="seg-lang">
-                <button data-v="ar" class="on">عربي + English</button>
-                <button data-v="en">English only</button>
-              </div>
+              <span style="display:flex;align-items:center">
+                <span class="seg-tag">LANGUAGE</span>
+                <span class="seg" id="seg-lang">
+                  <button data-v="auto" class="on">Auto</button>
+                  <button data-v="ar">عربي</button>
+                  <button data-v="en">English</button>
+                </span>
+              </span>
+              <span style="display:flex;align-items:center">
+                <span class="seg-tag">TONE</span>
+                <span class="seg" id="seg-tone">
+                  <button data-v="auto" class="on">Auto</button>
+                  <button data-v="professional">Professional</button>
+                  <button data-v="casual">Casual</button>
+                </span>
+              </span>
               <div class="flow-ctl">
                 <span class="star">✦</span>
                 <div>
                   <div class="fl">Flow mode</div>
-                  <div class="fs" id="flow-sub">tidies filler &amp; punctuation</div>
+                  <div class="fs" id="flow-sub">grammar, structure &amp; lists</div>
                 </div>
                 <div class="switch" id="flow-switch" role="switch" tabindex="0"
                      onclick="toggleFlow()"
@@ -391,7 +440,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
           </div>
           <div class="tools-row">
             <div class="search-wrap">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9A9285" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
               <input id="search" placeholder="Search history…" spellcheck="false">
             </div>
             <span class="hints" id="hints"></span>
@@ -412,6 +461,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             <div class="rail-stat"><span class="v" id="rs-wpm">—</span><span class="l">average speed</span></div>
             <div class="rail-stat"><span class="v" style="color:var(--accent-text)" id="rs-streak">—</span><span class="l">day streak — keep it going</span></div>
           </div>
+          <div class="tip-card">Select any text and press <b id="tip-cmdkey">F8</b> — then say <b>"make this formal"</b>, <b>"ترجمه للعربي"</b> or <b>"shorten it"</b>. It rewrites in place.</div>
           <div class="tip-card">Try saying: <span style="color:var(--text)">"اكتب ايميل لأحمد عن الاجتماع bukra at ten"</span> — mixed sentences are fine.</div>
         </div>
       </div>
@@ -429,15 +479,15 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             <span class="s">~3× faster than typing</span>
           </div>
           <svg width="64" height="64" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="26" fill="none" stroke="#F0EADC" stroke-width="7"/>
-            <circle id="ins-gauge" cx="32" cy="32" r="26" fill="none" stroke="#6C55E8" stroke-width="7"
+            <circle class="gauge-track" cx="32" cy="32" r="26" fill="none" stroke-width="7"/>
+            <circle id="ins-gauge" class="gauge-arc" cx="32" cy="32" r="26" fill="none" stroke-width="7"
                     stroke-linecap="round" stroke-dasharray="0 164" transform="rotate(-90 32 32)"/>
-            <text id="ins-gauge-t" x="32" y="37" text-anchor="middle" font-size="13"
-                  font-family="Georgia,serif" fill="#5240C9"></text>
+            <text id="ins-gauge-t" class="gauge-txt" x="32" y="37" text-anchor="middle" font-size="13"
+                  font-weight="600"></text>
           </svg>
         </div>
         <div class="ins-card"><span class="k">TOTAL WORDS</span><span class="v" id="ins-words">—</span><span class="s" id="ins-wps"></span></div>
-        <div class="ins-card"><span class="k"><span style="color:var(--accent-text)">✦</span> FLOW FIXES</span><span class="v" id="ins-fixes">—</span><span class="s">filler &amp; punctuation cleanups</span></div>
+        <div class="ins-card"><span class="k"><span style="color:var(--accent-text)">✦</span> FLOW FIXES</span><span class="v" id="ins-fixes">—</span><span class="s">grammar &amp; structure cleanups</span></div>
         <div class="ins-card"><span class="k">DICTATIONS</span><span class="v" id="ins-count">—</span><span class="s" id="ins-days"></span></div>
       </div>
       <div class="ins-card" style="margin-top:14px;flex:none;gap:10px">
@@ -449,7 +499,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
         <div class="ins-card" style="gap:12px">
           <div style="display:flex;align-items:center;justify-content:space-between">
             <span class="k">DAILY ACTIVITY · LAST 6 MONTHS</span>
-            <span class="heat-legend">less <i style="background:#EFE8DB"></i><i style="background:#E4DBF9"></i><i style="background:#C6B5F3"></i><i style="background:#9C82EC"></i><i style="background:#6C55E8"></i> more</span>
+            <span class="heat-legend" id="heat-legend">less <i></i><i></i><i></i><i></i><i></i> more</span>
           </div>
           <div style="display:flex;gap:10px">
             <div style="display:flex;flex-direction:column;justify-content:space-between;padding:20px 0 2px;font-size:9.5px;color:var(--faint)">
@@ -464,13 +514,13 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
         <div style="width:225px;flex:none;display:flex;flex-direction:column;gap:14px">
           <div class="ins-card" style="justify-content:center">
             <span style="display:flex;align-items:baseline;gap:6px">
-              <span class="v" style="font-size:30px;color:var(--accent-text)" id="ins-streak">—</span>
-              <svg width="13" height="15" viewBox="0 0 24 24" fill="#6C55E8" style="align-self:center"><path d="M12 2c1.2 3.6-4 6-4 10.5a4.4 4.4 0 0 0 8.8 0c0-1.9-.9-3.3-1.9-4.4-.1 1.6-2.1 2.2-1.6.2.4-1.7.3-4.2-1.3-6.3z"/></svg>
+              <span class="v" style="font-size:27px;color:var(--accent-text)" id="ins-streak">—</span>
+              <svg width="13" height="15" viewBox="0 0 24 24" fill="var(--accent)" style="align-self:center"><path d="M12 2c1.2 3.6-4 6-4 10.5a4.4 4.4 0 0 0 8.8 0c0-1.9-.9-3.3-1.9-4.4-.1 1.6-2.1 2.2-1.6.2.4-1.7.3-4.2-1.3-6.3z"/></svg>
             </span>
             <span class="s">current streak, days</span>
           </div>
           <div class="ins-card" style="justify-content:center">
-            <span class="v" style="font-size:30px" id="ins-longest">—</span>
+            <span class="v" style="font-size:27px" id="ins-longest">—</span>
             <span class="s">longest streak, days</span>
           </div>
           <div class="tip-card" style="font-size:11px;line-height:1.7">From your data only: timestamp, words, duration, language, Flow flag.</div>
@@ -493,7 +543,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
         </div>
         <div class="tools-row" style="margin-top:14px">
           <div class="search-wrap">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9A9285" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
             <input id="dic-search" placeholder="Search entries…" spellcheck="false">
           </div>
           <span style="font-size:11px;color:var(--muted)">applies in both languages</span>
@@ -505,7 +555,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
     <!-- SETTINGS -->
     <div class="page" id="page-settings">
       <div class="set-wrap">
-        <div class="page-date">Language &amp; Flow mode live on the Dictation page</div>
+        <div class="page-date">Language, tone &amp; Flow mode live on the Dictation page</div>
         <div class="page-title">Settings</div>
         <div class="section-label" style="margin-top:18px">RECORDING</div>
         <div class="set-card">
@@ -517,7 +567,30 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             </div>
           </div>
           <div class="set-row"><span class="sl">Record key</span><select id="sel-reckey"></select></div>
+          <div class="set-row">
+            <div><div class="sl">Command key</div><div class="ss">select text, press it, speak an edit — "make this formal"</div></div>
+            <select id="sel-cmdkey"></select>
+          </div>
           <div class="set-row"><span class="sl">Language key</span><select id="sel-langkey"></select></div>
+        </div>
+        <div class="section-label" style="margin-top:16px">FLOW AI</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div><div class="sl">Adapt to the app you're in</div><div class="ss">emails get clean paragraphs, chats stay casual, code stays plain</div></div>
+            <div class="switch" id="appaware-switch" role="switch" tabindex="0" onclick="toggleAppAware()"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAppAware()}"></div>
+          </div>
+        </div>
+        <div class="section-label" style="margin-top:16px">APPEARANCE</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div><div class="sl">Theme</div><div class="ss">System follows your Windows setting</div></div>
+            <select id="sel-theme">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
         </div>
         <div class="section-label" style="margin-top:16px">SOUND</div>
         <div class="set-card">
@@ -567,6 +640,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
 const $ = id => document.getElementById(id);
 const REC_KEYS = ['f2','f4','f6','f8','f9','pause'];
 const LANG_KEYS = ['f7','f10','f11','f12'];
+const CMD_KEYS = ['f3','f6','f8'];
 const AR_RE = /[؀-ۿ]/;
 let S = {}, HISTORY = [], state = 'idle', startedAt = 0;
 let level = 0, dispLevel = 0, openMenuTs = null;
@@ -577,6 +651,19 @@ function api(method, ...args){
     return window.pywebview.api[method](...args);
   return Promise.resolve(null);
 }
+
+/* ---------- theme ---------- */
+function isDark(){
+  const pref = S.theme || 'system';
+  if (pref === 'dark') return true;
+  if (pref === 'light') return false;
+  return matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function applyTheme(){
+  document.documentElement.dataset.theme = isDark() ? 'dark' : 'light';
+  if ($('page-insights').classList.contains('on')) renderInsights();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
 /* ---------- 60fps meter + timer ---------- */
 const meterBars = Array.from($('meter').children);
@@ -607,10 +694,12 @@ window.app = {
   setState(st, detail, started){
     state = st; startedAt = started || 0;
     const p = $('spill');
-    p.className = 'spill ' + st;
+    const cmd = st === 'recording' && detail === 'command';
+    p.className = 'spill ' + (cmd ? 'command' : st);
     const rk = (S.record_key || 'f9').toUpperCase();
     let inner = '';
     if (st === 'idle') inner = `<span class="dot"></span><span>Idle — press ${rk} to start</span>`;
+    else if (cmd) inner = `<span class="dot"></span><span>Command — listening</span><span class="timer" id="spill-timer">0:00</span>`;
     else if (st === 'recording') inner = `<span class="dot"></span><span>Recording</span><span class="timer" id="spill-timer">0:00</span>`;
     else if (st === 'transcribing') inner = `<span class="spin"></span><span>Transcribing…</span>`;
     else if (st === 'cleaning') inner = `<span style="font-size:11px">✦</span><span>Cleaning…</span>`;
@@ -685,12 +774,17 @@ function renderFeed(){
 function buildRow(e){
   const row = document.createElement('div');
   row.className = 'row';
-  const isAr = e.lang === 'ar' || AR_RE.test(e.text);
+  const isAr = AR_RE.test(e.text);
   row.innerHTML = `<span class="t">${fmtTime(e.ts)}</span>` +
     `<div class="txt${isAr ? ' ar' : ''}">${esc(e.text)}</div>`;
   const acts = document.createElement('span');
   acts.className = 'acts';
-  if (e.cleaned) acts.innerHTML = '<span class="badge"><i>✦</i>flow</span>';
+  if (e.cmd){
+    const b = document.createElement('span');
+    b.className = 'badge'; b.innerHTML = '<i>✎</i>edit';
+    b.title = e.cmd;
+    acts.appendChild(b);
+  } else if (e.cleaned) acts.innerHTML = '<span class="badge"><i>✦</i>flow</span>';
   const hov = document.createElement('span');
   hov.className = 'hov';
   const copy = document.createElement('button');
@@ -727,12 +821,12 @@ function toggleMenu(row, e){
     return b;
   };
   const I = {
-    undo:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E675C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>',
-    retry:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E675C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>',
-    audio:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E675C" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="10" x2="4" y2="14"/><line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="16" y1="8" x2="16" y2="16"/><line x1="20" y1="11" x2="20" y2="13"/></svg>',
-    trash:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#B23730" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>'
+    undo:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>',
+    retry:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>',
+    audio:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="10" x2="4" y2="14"/><line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="16" y1="8" x2="16" y2="16"/><line x1="20" y1="11" x2="20" y2="13"/></svg>',
+    trash:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>'
   };
-  m.appendChild(item('Undo AI edit', I.undo, !!(e.cleaned && e.raw),
+  m.appendChild(item(e.cmd ? 'Undo edit' : 'Undo AI edit', I.undo, !!(e.cleaned && e.raw),
     () => api('undo_ai', e.ts).then(r => { if (r) window.app.updateEntry(r); })));
   m.appendChild(item('Retry transcript', I.retry, !!e.audio,
     () => api('retry_entry', e.ts)));
@@ -781,11 +875,16 @@ function renderRail(){
   const secs = HISTORY.reduce((a,e) => a + (e.secs || 0), 0);
   const wpm = secs > 2 ? Math.round(words / (secs / 60)) : 0;
   $('rs-words').textContent = words ? words.toLocaleString() : '—';
-  $('rs-wpm').innerHTML = wpm ? `${wpm} <span style="font-size:14px;color:var(--text2)">WPM</span>` : '—';
+  $('rs-wpm').innerHTML = wpm ? `${wpm} <span style="font-size:13px;color:var(--text2)">WPM</span>` : '—';
   $('rs-streak').textContent = HISTORY.length ? streaks().cur : '—';
 }
 
 /* ---------- insights ---------- */
+function heatRamp(){
+  return isDark()
+    ? ['#232329','#332C52','#4A3D85','#6C55E8','#9C8AF4']
+    : ['#EEEEF1','#E0D8FA','#C3B3F4','#9C82EC','#6C55E8'];
+}
 function renderInsights(){
   const n = HISTORY.length;
   const words = HISTORY.reduce((a,e) => a + e.words, 0);
@@ -809,8 +908,8 @@ function renderInsights(){
   const st = n ? streaks() : {cur:'—', longest:'—'};
   $('ins-streak').textContent = st.cur;
   $('ins-longest').textContent = st.longest;
-  // language mix
-  const arW = HISTORY.filter(e => e.lang === 'ar').reduce((a,e) => a + e.words, 0);
+  // language mix — script-detected per entry, so "Auto" dictations count right
+  const arW = HISTORY.filter(e => AR_RE.test(e.text)).reduce((a,e) => a + e.words, 0);
   const enW = words - arW;
   const arP = words ? Math.round(arW / words * 100) : 50;
   $('mix-bar').innerHTML = `<span style="width:${arP}%;background:var(--accent)"></span>` +
@@ -821,7 +920,8 @@ function renderInsights(){
   renderHeatmap();
 }
 function renderHeatmap(){
-  const RAMP = ['#EFE8DB','#E4DBF9','#C6B5F3','#9C82EC','#6C55E8'];
+  const RAMP = heatRamp();
+  $('heat-legend').querySelectorAll('i').forEach((el, i) => el.style.background = RAMP[i]);
   const counts = {};
   for (const e of HISTORY){
     const k = new Date(e.ts * 1000).toDateString();
@@ -854,14 +954,12 @@ function renderHeatmap(){
   }
   const mrow = $('heat-months');
   mrow.innerHTML = '';
-  let prevW = 0;
   months.forEach((mo, i) => {
     const span = document.createElement('span');
     span.textContent = mo.m;
     const next = i + 1 < months.length ? months[i+1].w : WEEKS;
     span.style.width = ((next - mo.w) * 14) + 'px';
     mrow.appendChild(span);
-    prevW = next;
   });
 }
 
@@ -886,7 +984,7 @@ function renderDictionary(){
   $('dic-count').textContent = `${pairs.length} entr${pairs.length === 1 ? 'y' : 'ies'}`;
   const list = $('dic-list');
   list.innerHTML = '';
-  const arrow = flip => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B3A996" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${flip ? ' style="transform:scaleX(-1)"' : ''}><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg>`;
+  const arrow = flip => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${flip ? ' style="transform:scaleX(-1)"' : ''}><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg>`;
   if (!shown.length){
     const d = document.createElement('div');
     d.style.cssText = 'padding:22px 16px;font-size:12.5px;color:var(--muted);text-align:center';
@@ -918,7 +1016,6 @@ function renderDictionary(){
 function dicEditor(w, r, onDone){
   const ed = document.createElement('div');
   ed.className = 'dic-edit';
-  ed.innerHTML = '';
   const iw = document.createElement('input'); iw.placeholder = 'heard as… (e.g. dialverse)'; iw.value = w; iw.spellcheck = false;
   const ir = document.createElement('input'); ir.placeholder = 'write as… (e.g. Dialverse)'; ir.value = r; ir.spellcheck = false;
   const ok = document.createElement('button'); ok.className = 'btn-primary'; ok.style.height = '30px'; ok.textContent = 'Save';
@@ -962,7 +1059,11 @@ function segSet(id, val){
 }
 $('seg-lang').addEventListener('click', ev => {
   const v = ev.target.dataset.v; if (!v) return;
-  segSet('seg-lang', v); api('set_language', v);
+  segSet('seg-lang', v); S.language = v; api('set_language', v);
+});
+$('seg-tone').addEventListener('click', ev => {
+  const v = ev.target.dataset.v; if (!v) return;
+  segSet('seg-tone', v); setSetting('tone', v);
 });
 $('seg-mode').addEventListener('click', ev => {
   const v = ev.target.dataset.v; if (!v) return;
@@ -971,7 +1072,7 @@ $('seg-mode').addEventListener('click', ev => {
 function toggleFlow(){
   const on = !$('flow-switch').classList.contains('on');
   $('flow-switch').classList.toggle('on', on);
-  $('flow-sub').textContent = on ? 'tidies filler & punctuation' : 'off — exactly as spoken';
+  $('flow-sub').textContent = on ? 'grammar, structure & lists' : 'off — exactly as spoken';
   setSetting('flow_mode', on);
 }
 function toggleChime(){
@@ -994,14 +1095,22 @@ function toggleEnhance(){
   $('enhance-switch').classList.toggle('on', on);
   setSetting('audio_enhance', on);
 }
+function toggleAppAware(){
+  const on = !$('appaware-switch').classList.contains('on');
+  $('appaware-switch').classList.toggle('on', on);
+  setSetting('app_aware', on);
+}
 function setSetting(key, value){ S[key] = value; api('set_setting', key, value); }
 function renderHints(){
   const rk = (S.record_key || 'f9').toUpperCase();
   const lk = (S.lang_key || 'f10').toUpperCase();
+  const ck = (S.command_key || 'f8').toUpperCase();
   $('hints').innerHTML = `<kbd>${rk}</kbd>${S.rec_mode === 'hold' ? 'hold' : 'record'}` +
+                         `<kbd style="margin-left:5px">${ck}</kbd>edit` +
                          `<kbd style="margin-left:5px">${lk}</kbd>language`;
   $('empty-key').textContent = rk;
   $('mode-sub').textContent = `how ${rk} behaves`;
+  $('tip-cmdkey').textContent = ck;
 }
 function fillSelect(id, values, current, cb){
   const sel = $(id);
@@ -1045,6 +1154,7 @@ $('key-input').addEventListener('keydown', ev => { if (ev.key === 'Enter') saveK
 function boot(init){
   S = init.settings;
   HISTORY = init.history || [];
+  applyTheme();
   $('setup').classList.remove('active');
   $('main').classList.add('active');
   const name = init.user || '';
@@ -1053,21 +1163,26 @@ function boot(init){
   $('prof-av').textContent = (name || 'Y')[0].toUpperCase();
   $('today-date').textContent = new Date().toLocaleDateString('en-US',
     {weekday:'long', month:'long', day:'numeric'});
-  segSet('seg-lang', S.language);
+  segSet('seg-lang', S.language || 'auto');
+  segSet('seg-tone', S.tone || 'auto');
   segSet('seg-mode', S.rec_mode);
   $('flow-switch').classList.toggle('on', !!S.flow_mode);
-  $('flow-sub').textContent = S.flow_mode ? 'tidies filler & punctuation' : 'off — exactly as spoken';
+  $('flow-sub').textContent = S.flow_mode ? 'grammar, structure & lists' : 'off — exactly as spoken';
   $('chime-switch').classList.toggle('on', S.chime_on !== false);
   $('autostart-switch').classList.toggle('on', !!S.autostart);
   $('idlepill-switch').classList.toggle('on', S.idle_pill !== false);
   $('enhance-switch').classList.toggle('on', S.audio_enhance !== false);
+  $('appaware-switch').classList.toggle('on', S.app_aware !== false);
   $('vol').value = S.chime_volume ?? 40;
   $('vol').style.setProperty('--val', $('vol').value + '%');
   $('vol-val').textContent = $('vol').value + '%';
   fillSelect('sel-reckey', REC_KEYS, S.record_key, v => { setSetting('record_key', v); renderHints(); });
+  fillSelect('sel-cmdkey', CMD_KEYS, S.command_key || 'f8', v => { setSetting('command_key', v); renderHints(); });
   fillSelect('sel-langkey', LANG_KEYS, S.lang_key, v => { setSetting('lang_key', v); renderHints(); });
   fillSelect('sel-mic', init.devices, S.mic_device || 'System default',
              v => setSetting('mic_device', v === 'System default' ? '' : v));
+  $('sel-theme').value = S.theme || 'system';
+  $('sel-theme').onchange = () => { setSetting('theme', $('sel-theme').value); applyTheme(); };
   if (init.version)
     $('ver-note').textContent =
       `Yalla Flow ${init.version} · by Dialverse · key stored on this device only`;
@@ -1076,6 +1191,8 @@ function boot(init){
 }
 window.addEventListener('pywebviewready', () => {
   api('get_init').then(init => {
+    S = init.settings || {};
+    applyTheme();
     if (init.logo){
       $('setup-logo').src = 'data:image/png;base64,' + init.logo;
       $('side-logo').src = 'data:image/png;base64,' + init.logo;

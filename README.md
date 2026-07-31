@@ -37,11 +37,16 @@ We wrapped it in a desktop experience we love, and it costs the team **nothing t
 | | |
 |---|---|
 | **Dictate anywhere** | <kbd>F9</kbd> in WhatsApp, Outlook, Word, your CRM — anywhere you can type. Press-to-talk or hold-to-talk. |
-| **Flow mode** | AI tidies your filler words, stutters and punctuation — «يعني... امم» goes in, clean text comes out. Toggle it off for word-for-word. |
+| **Flow mode** | AI fixes grammar, restructures rambling sentences, breaks paragraphs, and turns spoken enumerations into lists — «يعني... امم» goes in, organized text comes out. Toggle it off for word-for-word. |
+| **App-aware** | Knows where you're dictating: emails get clean paragraphs, chats stay casual, code stays plain text. |
+| **Command mode** | Select any text, press <kbd>F8</kbd>, and say the edit — *"make this formal"*, *"ترجمه للعربي"*, *"shorten it"*. It rewrites in place. |
+| **Tone presets** | Auto, Professional, or Casual — one click on the dictation page. |
+| **Auto language** | Speak Arabic, English or both — no toggle needed (F10 still switches if you want to pin one). |
 | **Dictionary** | Teach it your client names and company jargon once — spelled right forever, in both languages. |
 | **Insights** | Words dictated, speed in WPM, language mix, and a 6-month streak heatmap. |
 | **The pill** | A little floating bar follows your cursor across monitors — pulsing while you talk, spinning while it transcribes. |
 | **Lives in the tray** | Close the window, hotkeys stay live. Optional *Start with Windows*. |
+| **Light & dark** | A clean modern UI that follows your Windows theme — or pin it either way. |
 | **Private by design** | History and audio stay on your machine. Each person uses their own free API key. |
 
 <p align="center">
