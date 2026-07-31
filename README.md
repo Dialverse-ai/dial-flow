@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="logo.png" width="90" alt="Yalla Flow">
+  <img src="logo.png" width="90" alt="Dial Flow">
 </p>
 
-<h1 align="center">Yalla Flow</h1>
+<h1 align="center">Dial Flow</h1>
 
 <p align="center">
   <b>Speak Arabic. Speak English. Speak both in the same sentence.</b><br>
@@ -10,14 +10,14 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/Dialverse/yalla-flow?label=download&color=6C55E8&style=for-the-badge" alt="Download"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/Dialverse-ai/dial-flow?label=download&color=6C55E8&style=for-the-badge" alt="Download"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-2E2A24?style=for-the-badge" alt="Windows">
   <img src="https://img.shields.io/badge/cost-%240%2Fmonth-3E8E5A?style=for-the-badge" alt="Free">
-  <img src="https://img.shields.io/github/downloads/Dialverse/yalla-flow/total?color=5240C9&style=for-the-badge" alt="Downloads">
+  <img src="https://img.shields.io/github/downloads/Dialverse-ai/dial-flow/total?color=5240C9&style=for-the-badge" alt="Downloads">
 </p>
 
 <p align="center">
-  <img src="assets/dictation.png" width="820" alt="Yalla Flow — Dictation">
+  <img src="assets/dictation.png" width="820" alt="Dial Flow — Dictation">
 </p>
 
 ---
@@ -27,7 +27,7 @@
 Dictation tools are magical — until you speak **Egyptian Arabic mixed with English**
 mid-sentence, the way our whole team actually talks. Then they fall apart.
 
-Yalla Flow is built on Cohere's open Arabic speech model — the top open-source model
+Dial Flow is built on Cohere's open Arabic speech model — the top open-source model
 on the Arabic ASR leaderboard — purpose-trained for **dialects** (Egyptian, Gulf,
 Levantine, Najdi, Hijazi, North African) and **Arabic–English code-switching**.
 We wrapped it in a desktop experience we love, and it costs the team **nothing to run**.
@@ -50,12 +50,12 @@ We wrapped it in a desktop experience we love, and it costs the team **nothing t
 | **Private by design** | History and audio stay on your machine. Each person uses their own free API key. |
 
 <p align="center">
-  <img src="assets/dictionary.png" width="820" alt="Yalla Flow — Dictionary">
+  <img src="assets/dictionary.png" width="820" alt="Dial Flow — Dictionary">
 </p>
 
 ## Get started — 3 minutes / التثبيت
 
-1. **[⬇ Download YallaFlow.exe](../../releases/latest)** and run it.
+1. **[⬇ Download DialFlow.exe](../../releases/latest)** and run it.
    Windows may show *"Windows protected your PC"* the first time — click
    **More info → Run anyway** (normal for unsigned internal tools).
    <br>أول مرة ويندوز ممكن يحذرك — دوس **More info** بعدين **Run anyway**. ده طبيعي.
@@ -69,18 +69,18 @@ We wrapped it in a desktop experience we love, and it costs the team **nothing t
 ## Build from source
 
 ```bash
-git clone https://github.com/Dialverse/yalla-flow
-cd yalla-flow
+git clone https://github.com/Dialverse-ai/dial-flow
+cd dial-flow
 pip install -r requirements.txt
-python yalla_app.py
+python dial_app.py
 ```
 
 Package a single-file exe:
 
 ```bash
-pyinstaller --noconfirm --onefile --windowed --name YallaFlow --icon app.ico ^
+pyinstaller --noconfirm --onefile --windowed --name DialFlow --icon app.ico ^
   --add-data "app.ico;." --add-data "web;web" ^
-  --collect-all webview --collect-all clr_loader --collect-all pythonnet yalla_app.py
+  --collect-all webview --collect-all clr_loader --collect-all pythonnet dial_app.py
 ```
 
 **Stack:** Python engine (recording, hotkeys, tray) + WebView2 frontend

@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Yalla Flow</title>
+<title>Dial Flow</title>
 <style>
 :root, :root[data-theme=light]{
   color-scheme:light;
@@ -355,7 +355,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
 <div id="setup" class="view">
   <div class="setup-box">
     <img id="setup-logo" alt="">
-    <h1>Welcome to Yalla Flow</h1>
+    <h1>Welcome to Dial Flow</h1>
     <p>Dictate in Arabic, English or both — anywhere on your PC. Paste your Cohere API key to begin; it never leaves this device.</p>
     <input id="key-input" placeholder="Paste your API key…" spellcheck="false">
     <div id="key-err"></div>
@@ -371,7 +371,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
   <div id="side">
     <div class="brand">
       <img id="side-logo" alt="">
-      <div><div class="n">Yalla Flow</div><div class="s">by Dialverse</div></div>
+      <div><div class="n">Dial Flow</div><div class="s">by Dialverse</div></div>
     </div>
     <div class="nav">
       <button class="nav-item on" id="nav-dictation" onclick="go('dictation')">
@@ -535,7 +535,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
         <div class="page-title">Dictionary</div>
         <div class="dic-hero">
           <div>
-            <div class="ht">Yalla Flow spells the way you do</div>
+            <div class="ht">Dial Flow spells the way you do</div>
             <div class="hs">Add client names, company jargon and Arabic spellings once — they'll come out right every time, in either language.</div>
           </div>
           <button class="btn-primary" onclick="dicAdd()">
@@ -629,7 +629,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleIdlePill()}"></div>
           </div>
         </div>
-        <div class="set-note" id="ver-note">Yalla Flow · by Dialverse · key stored on this device only</div>
+        <div class="set-note" id="ver-note">Dial Flow · by Dialverse · key stored on this device only</div>
       </div>
     </div>
   </div>
@@ -717,7 +717,7 @@ window.app = {
   },
   setLanguage(lang){ segSet('seg-lang', lang); },
   updateAvailable(tag){
-    $('update-title').textContent = `Yalla Flow ${tag} is available`;
+    $('update-title').textContent = `Dial Flow ${tag} is available`;
     $('update-sub').textContent = 'One click — it downloads, swaps itself, and relaunches.';
     $('update-btn').style.display = '';
     $('update-btn').disabled = false;
@@ -732,7 +732,7 @@ window.app = {
     } else if (st === 'failed'){
       $('update-btn').disabled = false;
       $('update-btn').textContent = 'Retry';
-      $('update-sub').textContent = 'Update failed — or download it from github.com/Dialverse/yalla-flow/releases';
+      $('update-sub').textContent = 'Update failed — or download it from github.com/Dialverse-ai/dial-flow/releases';
     }
   }
 };
@@ -1185,7 +1185,7 @@ function boot(init){
   $('sel-theme').onchange = () => { setSetting('theme', $('sel-theme').value); applyTheme(); };
   if (init.version)
     $('ver-note').textContent =
-      `Yalla Flow ${init.version} · by Dialverse · key stored on this device only`;
+      `Dial Flow ${init.version} · by Dialverse · key stored on this device only`;
   renderFeed(); renderRail(); renderHints();
   window.app.setState('idle', '');
 }

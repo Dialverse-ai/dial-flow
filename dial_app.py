@@ -1,4 +1,4 @@
-"""Yalla Flow 2.0 — Arabic+English dictation with a GPU-composited web UI.
+"""Dial Flow — Arabic+English dictation with a GPU-composited web UI.
 
 Architecture: Python engine (recording, Cohere transcription, Flow cleanup,
 hotkeys, tray, chimes) + pywebview/WebView2 frontend (web/index.html) for
@@ -38,17 +38,30 @@ from PIL import Image
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, "frozen", False):
     RESOURCE_DIR = sys._MEIPASS
-    CONFIG_DIR = os.path.join(os.environ.get("APPDATA", APP_DIR), "ArabicDictation")
+    CONFIG_DIR = os.path.join(os.environ.get("APPDATA", APP_DIR), "DialFlow")
 else:
     RESOURCE_DIR = APP_DIR
     CONFIG_DIR = APP_DIR
 os.makedirs(CONFIG_DIR, exist_ok=True)
+# one-time migration from the Yalla Flow era: carry over key, settings and
+# history so nobody re-onboards after the rename
+_LEGACY_DIR = os.path.join(os.environ.get("APPDATA", ""), "ArabicDictation")
+if (getattr(sys, "frozen", False)
+        and not os.path.exists(os.path.join(CONFIG_DIR, ".env"))
+        and os.path.isdir(_LEGACY_DIR)):
+    for _f in (".env", "settings.json", "history.json"):
+        _src = os.path.join(_LEGACY_DIR, _f)
+        if os.path.exists(_src):
+            try:
+                shutil.copyfile(_src, os.path.join(CONFIG_DIR, _f))
+            except OSError:
+                pass
 
 APP_VERSION = "3.0.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 PILL_BG = "#14121D"
-UPDATE_API = "https://api.github.com/repos/Dialverse/yalla-flow/releases/latest"
+UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
 MODELS_URL = "https://api.cohere.com/v1/models"
@@ -202,13 +215,17 @@ def _apply_autostart(enabled):
                              r"Software\Microsoft\Windows\CurrentVersion\Run",
                              0, winreg.KEY_SET_VALUE)
         if enabled and getattr(sys, "frozen", False):
-            winreg.SetValueEx(key, "YallaFlow", 0, winreg.REG_SZ,
+            winreg.SetValueEx(key, "DialFlow", 0, winreg.REG_SZ,
                               f'"{sys.executable}" --minimized')
         else:
             try:
-                winreg.DeleteValue(key, "YallaFlow")
+                winreg.DeleteValue(key, "DialFlow")
             except FileNotFoundError:
                 pass
+        try:  # drop the Yalla Flow era's entry so both don't launch
+            winreg.DeleteValue(key, "YallaFlow")
+        except FileNotFoundError:
+            pass
         winreg.CloseKey(key)
     except OSError:
         logging.exception("autostart update failed")
@@ -223,7 +240,6 @@ box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
 @keyframes pillBreathe{0%,100%{opacity:.25}50%{opacity:.6}}
 @keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
 @keyframes pillDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.72);opacity:.55}}
-@keyframes pillBar{0%,100%{transform:scaleY(.22)}50%{transform:scaleY(1)}}
 @keyframes pillShim{0%,100%{opacity:.18}50%{opacity:.9}}
 @keyframes pillSpin{to{transform:rotate(360deg)}}
 @keyframes pillPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
@@ -245,8 +261,7 @@ animation:pillDot 1.4s ease-in-out .2s infinite}
 #t{font-size:13px;font-weight:600;color:#F5F3FA;font-variant-numeric:tabular-nums;
 animation:pillRise .14s ease-out .12s both}
 #wave{display:flex;align-items:center;gap:2px;animation:pillRise .16s ease-out .16s both}
-#wave i{width:2px;border-radius:1px;background:#F26B5E;display:block;
-animation:pillBar .76s ease-in-out infinite}
+#wave i{width:2px;height:2px;border-radius:1px;background:#F26B5E;display:block}
 .pspin{display:flex;animation:pillPop .12s ease-out .06s both}
 .pspin i{width:13px;height:13px;border-radius:999px;display:block;
 border:2px solid rgba(159,139,255,.25);border-top-color:#9F8BFF;
@@ -278,26 +293,38 @@ body.flash #pdots i{background:#C9BEFF;animation:pillFlash .3s ease-out both}
  <div id="pdots"></div>
 </div>
 <script>
-let startedAt=0;
+let startedAt=0,lvl=0,disp=0;
 const H=[8,14,20,11,17,22,9,15,12,18,10,16];
-const D=[0,.07,.14,.21,.28,.35,.03,.1,.17,.24,.31,.38];
 const wave=document.getElementById('wave');
-H.forEach((h,i)=>{const b=document.createElement('i');
-b.style.height=h+'px';b.style.animationDelay=D[i]+'s';wave.appendChild(b);});
+const bars=H.map(()=>{const b=document.createElement('i');
+wave.appendChild(b);return b;});
 const pd=document.getElementById('pdots');
 for(let i=0;i<12;i++){const d=document.createElement('i');
 d.style.animationDelay=(i*0.11)+'s';pd.appendChild(d);}
 window.app={
- start(ts){startedAt=ts;document.body.className='rec';},
- level(v){},
+ start(ts){startedAt=ts;lvl=0;disp=0;document.body.className='rec';},
+ level(v){lvl=v;},
  mode(m){document.body.className=m;},
  done(){document.body.className='processing flash';}
 };
 function raf(){
- if(document.body.classList.contains('rec')&&startedAt){
-  const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
-  document.getElementById('t').textContent=
-   Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+ if(document.body.classList.contains('rec')){
+  if(startedAt){
+   const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
+   document.getElementById('t').textContent=
+    Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  }
+  /* Wispr-style wave: bars are driven by the real mic level pushed from
+     Python — silence collapses them to a flat 2px line, speech lifts them
+     with a slight per-bar wobble (wobble scales with the level too, so a
+     quiet room never shimmies) */
+  const target=Math.min(1,lvl*9);
+  disp+=(target-disp)*(target>disp?0.4:0.15);
+  const t=performance.now()/1000;
+  bars.forEach((b,i)=>{
+   const wig=0.7+0.3*Math.sin(t*9+i*1.7);
+   b.style.height=(2+disp*(H[i]-2)*wig)+'px';
+  });
  }
  requestAnimationFrame(raf);}
 requestAnimationFrame(raf);
@@ -897,7 +924,7 @@ class Api:
         return self._app.quit()
 
 
-class YallaFlow:
+class DialFlow:
     """Bridges the engine to the web UI."""
 
     def __init__(self):
@@ -1112,7 +1139,7 @@ class YallaFlow:
         time.sleep(4)
         try:
             r = requests.get(UPDATE_API, timeout=15,
-                             headers={"User-Agent": "YallaFlow"})
+                             headers={"User-Agent": "DialFlow"})
             if r.status_code != 200:
                 return
             data = r.json()
@@ -1143,7 +1170,7 @@ class YallaFlow:
             self._js(self.main_win, "app.updateState('downloading')")
             r = requests.get(self._update_url, timeout=600, stream=True)
             r.raise_for_status()
-            new_path = os.path.join(CONFIG_DIR, "YallaFlow_update.exe")
+            new_path = os.path.join(CONFIG_DIR, "DialFlow_update.exe")
             with open(new_path, "wb") as f:
                 for chunk in r.iter_content(1 << 16):
                     f.write(chunk)
@@ -1536,12 +1563,12 @@ class YallaFlow:
         try:
             img = Image.open(ICON_FILE)
             menu = pystray.Menu(
-                pystray.MenuItem("Open Yalla Flow",
+                pystray.MenuItem("Open Dial Flow",
                                  lambda: self._show_main(), default=True),
                 pystray.MenuItem("Quit", lambda: self._shutdown()),
             )
-            self.tray = pystray.Icon("YallaFlow", img,
-                                     "Yalla Flow — F9 to record", menu)
+            self.tray = pystray.Icon("DialFlow", img,
+                                     "Dial Flow — F9 to record", menu)
             threading.Thread(target=self.tray.run, daemon=True).start()
         except Exception:
             logging.exception("tray setup failed")
@@ -1566,7 +1593,7 @@ class YallaFlow:
                 try:
                     self.tray.notify("Still running — hotkeys stay active. "
                                      "Right-click the tray icon to quit.",
-                                     "Yalla Flow")
+                                     "Dial Flow")
                 except Exception:
                     pass
         except Exception:
@@ -1641,12 +1668,12 @@ class YallaFlow:
         sw = ctypes.windll.user32.GetSystemMetrics(0)
         sh = ctypes.windll.user32.GetSystemMetrics(1)
         self.main_win = webview.create_window(
-            "Yalla Flow", UI_FILE, js_api=Api(self),
+            "Dial Flow", UI_FILE, js_api=Api(self),
             width=1160, height=780, min_size=(960, 640),
             background_color="#131316" if self._theme_is_dark() else "#FAFAF8")
         self.main_win.events.closing += self._on_closing
         self.pill_win = webview.create_window(
-            "Yalla Flow — recording", html=PILL_HTML,
+            "Dial Flow — recording", html=PILL_HTML,
             width=PILL_W, height=PILL_H, x=sw // 2 - PILL_W // 2, y=sh - 118,
             # override pywebview's silent 200x100 default min — it must be
             # allowed to shrink all the way down to the idle bubble
@@ -1658,15 +1685,15 @@ class YallaFlow:
 
 
 def main():
-    ctypes.windll.kernel32.CreateMutexW(None, False, "YallaFlow.Singleton")
+    ctypes.windll.kernel32.CreateMutexW(None, False, "DialFlow.Singleton")
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         ctypes.windll.user32.MessageBoxW(
-            None, "Yalla Flow is already running — check your taskbar or "
-                  "system tray.", "Yalla Flow", 0x40)
+            None, "Dial Flow is already running — check your taskbar or "
+                  "system tray.", "Dial Flow", 0x40)
         return
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-        "Dialverse.YallaFlow")
-    YallaFlow().run()
+        "Dialverse.DialFlow")
+    DialFlow().run()
 
 
 if __name__ == "__main__":
