@@ -57,9 +57,11 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.3.0"
+APP_VERSION = "3.4.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
+HOVER_W, HOVER_H = 178, 44  # hovered: status text + cancel / open controls
+PILL_PAD = 18               # gap from the docked screen edge
 PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
 UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
 UPDATE_EVERY_H = 6  # re-check interval; a launch-only check never reaches a
@@ -70,7 +72,11 @@ MODELS_URL = "https://api.cohere.com/v1/models"
 MODEL = "cohere-transcribe-arabic-07-2026"
 CLEANUP_MODELS = ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"]
 SAMPLE_RATE = 16000
-MAX_SECONDS = 300
+MAX_SECONDS = 900
+# 16kHz PCM16 is ~32KB/s, so one request per 45s stays around 1.4MB. Bigger
+# single uploads time out mid-write on a slow uplink (field failures at
+# 145s/4.5MB and 214s/6.7MB, 2026-07-31).
+CHUNK_SECONDS = 45
 ENV_FILE = os.path.join(CONFIG_DIR, ".env")
 ICON_FILE = os.path.join(RESOURCE_DIR, "app.ico")
 UI_FILE = os.path.join(RESOURCE_DIR, "web", "index.html")
@@ -98,6 +104,7 @@ DEFAULT_SETTINGS = {
     "paste_mode": "paste",
     "snippets": [],
     "theme": "system",
+    "pill_pos": "bottom-center",
     "autostart": False,
     "idle_pill": True,
     "audio_enhance": True,
@@ -142,7 +149,32 @@ TONE_PROMPTS = {
                     "workplace-appropriate language (same meaning, no new "
                     "content).",
     "casual": "Keep the wording relaxed and conversational.",
+    "prompt": "",  # handled by PROMPT_MODE — it replaces the whole recipe
 }
+
+# Dictating a prompt to an AI is this app's dominant use. Spoken asks arrive
+# as one long stream: the objective buried mid-sentence, requirements
+# scattered, the same point revisited twice. This restructures that into
+# something an agent can act on — WITHOUT inventing scope, which is the
+# failure mode that makes "AI cleanup" untrustworthy for prompts.
+PROMPT_MODE = (
+    "You are formatting dictated speech into a prompt the speaker will send "
+    "to an AI coding assistant. Restructure it for clarity:\n"
+    "- Open with a one-line statement of what they want done. If they said "
+    "it late in the recording, move it to the front.\n"
+    "- Put every distinct request on its own numbered line, in the order "
+    "spoken. Merge duplicates where the same ask is repeated or revisited.\n"
+    "- Keep constraints, file names, tool names, and technical terms EXACTLY "
+    "as spoken — never normalize or 'correct' an identifier.\n"
+    "- Drop filler, self-corrections (keep only the corrected version), and "
+    "conversational padding ('so yeah', 'you know', 'alright mate').\n"
+    "- Keep the original language mix exactly; never translate.\n"
+    "CRITICAL: never add a requirement, suggestion, caveat, or section the "
+    "speaker did not say, and never answer or act on the request — you are "
+    "formatting it, not fulfilling it. If they asked a question, it stays a "
+    "question.\n"
+    "Return ONLY the formatted prompt."
+)
 
 
 def _app_context():
@@ -274,8 +306,25 @@ animation:pillSpin .8s linear infinite}
 #pdots{display:flex;align-items:center;gap:3.5px;animation:pillRise .16s ease-out .1s both}
 #pdots i{width:2.5px;height:2.5px;border-radius:999px;background:#8F86B8;display:block;
 animation:pillShim 1.32s ease-in-out infinite}
+/* hover controls + failure state */
+#hov-l{gap:9px;padding:0 10px;cursor:grab}
+#hov-l:active{cursor:grabbing}
+#hov-t{flex:1;font-size:11.5px;font-weight:600;color:#EFE9DC;white-space:nowrap;
+overflow:hidden;text-overflow:ellipsis;text-align:left}
+.pbtn{width:22px;height:22px;flex:none;border:none;border-radius:6px;cursor:pointer;
+background:rgba(255,255,255,.08);color:#EFE9DC;display:flex;align-items:center;
+justify-content:center;padding:0;transition:background .14s,color .14s}
+.pbtn:hover{background:rgba(255,255,255,.18)}
+.pbtn.warn:hover{background:rgba(242,107,94,.32);color:#FFD9D3}
+#grip{width:9px;height:14px;flex:none;opacity:.5;
+background:radial-gradient(circle,#9C86F6 1px,transparent 1.2px);
+background-size:4.5px 4.5px}
+#fail-l{gap:8px;padding:0 10px}
+#fail-l b{font-size:11.5px;font-weight:600;color:#F8A79D;white-space:nowrap}
+#failwash{position:absolute;inset:0;border-radius:7px;
+box-shadow:inset 0 0 14px rgba(242,107,94,.3)}
 /* state visibility */
-.layer,#recwash,#flashrim{display:none}
+.layer,#recwash,#flashrim,#failwash{display:none}
 body.mini #core-l{display:flex}
 body.rec #rec-l{display:flex}
 body.rec #recwash{display:block}
@@ -285,6 +334,14 @@ body.flash #flashrim{display:block}
 body.flash .pspin{display:none}
 body.flash #pdots{animation:none}
 body.flash #pdots i{background:#C9BEFF;animation:pillFlash .3s ease-out both}
+body.failed #fail-l{display:flex}
+body.failed #failwash{display:block}
+/* hover wins over every non-failure layer. These MUST be id-level selectors:
+   `body.hov .layer{display:none}` loses to `body.rec #rec-l{display:flex}`
+   on specificity, which left the timer and waveform painting through the
+   hover controls. */
+body.hov #core-l,body.hov #rec-l,body.hov #proc-l{display:none}
+body.hov #hov-l{display:flex}
 </style></head><body class="mini">
 <div id="recwash"></div><div id="flashrim"></div>
 <div class="layer" id="core-l"><div id="core"></div></div>
@@ -297,8 +354,27 @@ body.flash #pdots i{background:#C9BEFF;animation:pillFlash .3s ease-out both}
  <span class="pspin"><i></i></span>
  <div id="pdots"></div>
 </div>
+<div class="layer" id="fail-l">
+ <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F26B5E"
+  stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/>
+  <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+ <b id="fail-t">Transcription failed</b>
+</div>
+<div class="layer" id="hov-l">
+ <div id="grip"></div>
+ <div id="hov-t">Idle</div>
+ <button class="pbtn" id="btn-open" title="Open Dial Flow">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M14 4h6v6"/><path d="M20 4l-9 9"/>
+   <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+ <button class="pbtn warn" id="btn-cancel" title="Cancel">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+   stroke-width="2.6" stroke-linecap="round">
+   <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+</div>
 <script>
-let startedAt=0,lvl=0,disp=0;
+let startedAt=0,lvl=0,disp=0,base='mini',hovering=false,busy=false;
 const H=[8,14,20,11,17,22,9,15,12,18,10,16];
 const wave=document.getElementById('wave');
 const bars=H.map(()=>{const b=document.createElement('i');
@@ -306,12 +382,46 @@ wave.appendChild(b);return b;});
 const pd=document.getElementById('pdots');
 for(let i=0;i<12;i++){const d=document.createElement('i');
 d.style.animationDelay=(i*0.11)+'s';pd.appendChild(d);}
+function pyapi(fn){
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api[fn])
+  window.pywebview.api[fn]();
+}
+const LABEL={mini:'Idle — press F9',rec:'Recording',
+ processing:'Transcribing…',failed:'Transcription failed'};
+function paint(){
+ /* hover overlays whatever the engine state is; failure outranks hover so a
+    failed take is never hidden by the cursor resting on the pill */
+ document.body.className=base+((hovering&&base!=='failed')?' hov':'');
+ document.getElementById('hov-t').textContent=LABEL[base.split(' ')[0]]||'Idle';
+ document.getElementById('btn-cancel').style.display=busy?'flex':'none';
+}
 window.app={
- start(ts){startedAt=ts;lvl=0;disp=0;document.body.className='rec';},
+ start(ts){startedAt=ts;lvl=0;disp=0;base='rec';busy=true;paint();},
  level(v){lvl=v;},
- mode(m){document.body.className=m;},
- done(){document.body.className='processing flash';}
+ mode(m){base=m||'mini';busy=(m==='processing');paint();},
+ done(){base='processing flash';busy=false;paint();},
+ failed(msg){base='failed';busy=false;
+  if(msg)document.getElementById('fail-t').textContent=msg;
+  paint();},
+ /* size drives which layer can fit: only offer controls at hover size */
+ hoverable(on){document.body.dataset.hoverable=on?'1':'0';}
 };
+const body=document.body;
+body.addEventListener('mouseenter',()=>{
+ if(base==='failed')return;
+ hovering=true;pyapi('pill_hover_in');paint();});
+body.addEventListener('mouseleave',()=>{
+ hovering=false;pyapi('pill_hover_out');paint();});
+document.getElementById('btn-cancel').addEventListener('click',e=>{
+ e.stopPropagation();pyapi('pill_cancel');});
+document.getElementById('btn-open').addEventListener('click',e=>{
+ e.stopPropagation();pyapi('pill_open');});
+/* anywhere else on the hovered pill starts a native window drag */
+document.getElementById('hov-l').addEventListener('mousedown',e=>{
+ if(e.target.closest('.pbtn'))return;
+ e.preventDefault();pyapi('pill_drag');});
+document.getElementById('fail-l').addEventListener('click',()=>{
+ base='mini';paint();pyapi('pill_open');});
 function raf(){
  if(document.body.classList.contains('rec')){
   if(startedAt){
@@ -522,6 +632,25 @@ class Engine:
         # serializes the clipboard between command-mode's empty-sentinel
         # capture and worker threads pasting results
         self._clip_lock = threading.Lock()
+        # bumped by cancel(); a worker whose generation is stale drops its
+        # result instead of pasting into whatever the user is now doing
+        self._gen = 0
+
+    def cancel(self):
+        """Drop whatever is in flight — a live recording or an in-flight
+        transcription. The take still lands in history so nothing is lost."""
+        self._gen += 1
+        if self.recording:
+            with self.lock:
+                self.recording = False
+                self.level = 0.0
+                try:
+                    self.stream.stop()
+                    self.stream.close()
+                except Exception:
+                    pass
+                self.mode = "dictate"
+        self.on_state("idle", "Cancelled")
         self.rebuild_chimes()
         # first device-open of a session is the slow one — take that hit now
         threading.Thread(target=self._prewarm_mic, daemon=True).start()
@@ -683,19 +812,34 @@ class Engine:
                     target=self._transcribe,
                     args=(audio, elapsed, self.language), daemon=True).start()
 
+    def _split_points(self, audio):
+        """Cut a long take into <=CHUNK_SECONDS pieces, snapping each cut to
+        the quietest 20ms window inside a +/-3s search band so we land in a
+        pause instead of mid-word."""
+        step = CHUNK_SECONDS * SAMPLE_RATE
+        if len(audio) <= step:
+            return [(0, len(audio))]
+        slack = 3 * SAMPLE_RATE
+        win = SAMPLE_RATE // 50
+        cuts, pos = [0], step
+        while pos < len(audio) - slack:
+            lo, hi = max(cuts[-1] + SAMPLE_RATE, pos - slack), min(len(audio), pos + slack)
+            band = audio[lo:hi]
+            n = len(band) // win
+            if n:
+                rms = [float(np.sqrt(np.mean(band[i * win:(i + 1) * win] ** 2)))
+                       for i in range(n)]
+                pos = lo + int(np.argmin(rms)) * win
+            cuts.append(pos)
+            pos += step
+        cuts.append(len(audio))
+        return list(zip(cuts[:-1], cuts[1:]))
+
     def _asr(self, wav_bytes, lang):
-        """One transcription call. Returns (text, error) — exactly one is set.
-
-        'auto' maps straight to 'ar': the API REQUIRES a language and rejects
-        'auto' (probed 2026-07-31), and the code-switch model transcribes
-        pure English fine under 'ar' — so auto costs zero extra uploads.
-
-        Transient failures (flaky uplink kills big WAV uploads mid-write,
-        seen in the field) retry up to 3 attempts with backoff; the (10,120)
-        timeout gives slow uploads room the old flat 60s didn't."""
+        """Transcribe one already-encoded WAV. Returns (text, error)."""
         data = {"model": MODEL, "language": "ar" if lang == "auto" else lang}
         last_err = "Network error — check connection"
-        for attempt in range(3):
+        for attempt in range(4):
             try:
                 resp = requests.post(
                     API_URL,
@@ -703,21 +847,61 @@ class Engine:
                     data=data,
                     files={"file": ("audio.wav", io.BytesIO(wav_bytes),
                                     "audio/wav")},
-                    timeout=(10, 120),
+                    # generous WRITE budget: the socket timeout also governs
+                    # send(), and a slow uplink needs time to push even a
+                    # chunk-sized body
+                    timeout=(10, 300),
                 )
             except requests.RequestException:
-                logging.exception("asr attempt %s/3 failed", attempt + 1)
-                time.sleep(1.5 * (attempt + 1))
+                logging.exception("asr attempt %s/4 failed", attempt + 1)
+                time.sleep(2.0 * (attempt + 1))
                 continue
             if resp.status_code == 200:
                 return resp.json().get("text", "").strip(), None
             if resp.status_code == 429:
                 last_err = "Rate limited — try again in a minute"
-                time.sleep(3.0)
+                time.sleep(5.0)
                 continue
             logging.error("api %s: %s", resp.status_code, resp.text[:300])
             return None, f"API error {resp.status_code}"
         return None, last_err
+
+    def _asr_audio(self, audio, lang, on_progress=None):
+        """Transcribe a float32 take of ANY length.
+
+        Long dictations used to fail outright: 16kHz PCM16 is ~32KB/s, so a
+        3.5-minute take is a ~6.7MB single upload and a slow uplink times the
+        write out (field failures 2026-07-31). Splitting into CHUNK_SECONDS
+        pieces keeps every request ~1.4MB, which uploads reliably — and a
+        chunk that still fails only costs its own slice, not the whole take.
+
+        'auto' maps to 'ar': the API REQUIRES a language and rejects 'auto'
+        (probed), and the code-switch model handles pure English under 'ar'.
+        """
+        spans = self._split_points(audio)
+        parts, failed = [], 0
+        for i, (a, b) in enumerate(spans):
+            if on_progress and len(spans) > 1:
+                on_progress(i + 1, len(spans))
+            buf = io.BytesIO()
+            sf.write(buf, audio[a:b], SAMPLE_RATE, format="WAV", subtype="PCM_16")
+            text, err = self._asr(buf.getvalue(), lang)
+            if err:
+                if len(spans) == 1:
+                    return None, err
+                logging.error("chunk %s/%s failed: %s", i + 1, len(spans), err)
+                failed += 1
+                continue
+            if text:
+                parts.append(text)
+        if not parts:
+            return None, "Network error — check connection"
+        out = " ".join(parts)
+        if failed:
+            # partial beats nothing: the audio is still on disk for a retry
+            logging.warning("%s/%s chunks lost", failed, len(spans))
+            return out, None
+        return out, None
 
     def _keep_audio(self, wav_bytes, t0):
         """Persist the take BEFORE any network I/O — a failed upload must
@@ -742,6 +926,9 @@ class Engine:
             return
         self.on_state(state, detail)
 
+    def _cancelled(self, gen):
+        return gen != self._gen
+
     def _insert_text(self, text):
         """Deliver text into the focused field. The transcript always lands
         in the clipboard too — manual Ctrl+V is the recovery path."""
@@ -755,11 +942,17 @@ class Engine:
 
     def _transcribe(self, audio, duration, lang):
         t0 = time.time()
+        gen = self._gen
         buf = io.BytesIO()
         sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
         wav = buf.getvalue()
         audio_name = self._keep_audio(wav, t0)
-        text, err = self._asr(wav, lang)
+        text, err = self._asr_audio(
+            audio, lang,
+            lambda i, n: self._worker_state("transcribing", f"{i}/{n}"))
+        if self._cancelled(gen):
+            logging.info("transcribe cancelled — result dropped")
+            return
         if err:
             # the take is safe on disk — surface a retryable failed entry
             # in the feed instead of throwing the recording away
@@ -805,6 +998,9 @@ class Engine:
         text = _apply_dictionary(
             text, _parse_dictionary(self.settings.get("dictionary", "")))
 
+        if self._cancelled(gen):
+            logging.info("cancelled during cleanup — not pasting")
+            return
         self._insert_text(text)
         entry = {
             "ts": time.time(),
@@ -822,15 +1018,18 @@ class Engine:
         self._worker_state("idle", "" if cleaned or not self.settings.get(
             "flow_mode", True) else "Pasted raw — Flow couldn't reach the AI")
 
-    def transcribe_file(self, path, lang):
-        """Re-run transcription on a kept recording. Returns text or None."""
+    def transcribe_file(self, path, lang, on_progress=None):
+        """Re-run transcription on a kept recording. Returns text or None.
+        Goes through the chunked path too — retries were failing on exactly
+        the long takes that needed them most."""
         try:
-            with open(path, "rb") as f:
-                data = f.read()
-        except OSError:
+            audio, sr = sf.read(path, dtype="float32")
+        except Exception:
             logging.exception("retry: audio read failed")
             return None
-        text, err = self._asr(data, lang)
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        text, err = self._asr_audio(audio, lang, on_progress)
         if err:
             logging.error("retry failed: %s", err)
         return text or None
@@ -883,9 +1082,7 @@ class Engine:
 
     def _command_transcribe(self, audio, duration, lang, selection):
         t0 = time.time()
-        buf = io.BytesIO()
-        sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
-        instruction, err = self._asr(buf.getvalue(), "auto")
+        instruction, err = self._asr_audio(audio, "auto")
         if err or not instruction:
             self._worker_state("error", err or "Didn't catch the instruction")
             return
@@ -969,8 +1166,12 @@ class Engine:
         return None
 
     def _flow_clean(self, text, app_ctx="general"):
-        tone = TONE_PROMPTS.get(self.settings.get("tone", "auto"),
-                                TONE_PROMPTS["auto"])
+        tone_key = self.settings.get("tone", "auto")
+        if tone_key == "prompt":
+            # prompt mode replaces the recipe wholesale; app-context
+            # formatting would fight it (a prompt is a prompt everywhere)
+            return self._chat(f"{PROMPT_MODE}\n\nDictation: {text}")
+        tone = TONE_PROMPTS.get(tone_key, TONE_PROMPTS["auto"])
         ctx = APP_PROMPTS.get(app_ctx, "")
         prompt = (
             "You are a dictation post-processor. Rewrite the transcript "
@@ -1045,6 +1246,29 @@ class Api:
 
     def quit(self):
         return self._app.quit()
+
+
+class PillApi:
+    """JS bridge for the floating pill — deliberately separate from Api so
+    the always-on-top HUD cannot reach history, settings or the API key."""
+
+    def __init__(self, app):
+        self._app = app
+
+    def pill_drag(self):
+        return self._app.pill_drag()
+
+    def pill_cancel(self):
+        return self._app.pill_cancel()
+
+    def pill_open(self):
+        return self._app.pill_open()
+
+    def pill_hover_in(self):
+        return self._app.pill_hover_in()
+
+    def pill_hover_out(self):
+        return self._app.pill_hover_out()
 
 
 class DialFlow:
@@ -1230,7 +1454,9 @@ class DialFlow:
     def _retry_worker(self, e):
         path = os.path.join(AUDIO_DIR, e["audio"])
         self.engine._worker_state("transcribing", "")
-        text = self.engine.transcribe_file(path, e.get("lang", "ar"))
+        text = self.engine.transcribe_file(
+            path, e.get("lang", "ar"),
+            lambda i, n: self.engine._worker_state("transcribing", f"{i}/{n}"))
         if not text:
             # re-push the entry so the feed row (and its Retry button)
             # renders back out of its 'Retrying…' state
@@ -1431,6 +1657,32 @@ class DialFlow:
         except Exception:
             pass
 
+    @staticmethod
+    def _apply_pill_exstyle(hwnd):
+        """NOACTIVATE (never steal focus) + TOOLWINDOW (never appear in the
+        taskbar or alt-tab). Windows only re-evaluates taskbar presence when
+        the window is next shown, so this must land while it is still
+        hidden — see _hide_pill_from_taskbar."""
+        GWL_EXSTYLE = -20
+        u32 = ctypes.windll.user32
+        ex = u32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        u32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE,
+                              ex | 0x08000000 | 0x00000080)
+
+    def _hide_pill_from_taskbar(self):
+        """Force the pill's native handle while it is still hidden and stamp
+        the ex-style on it. Doing this only after the first show() leaves a
+        taskbar button behind for the rest of the session."""
+        try:
+            h = self.pill_win.native.Handle
+            hwnd = int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
+            self._apply_pill_exstyle(hwnd)
+            self._pill_hwnd = hwnd
+            logging.info("pill ex-style applied pre-show")
+        except Exception:
+            logging.exception("pre-show pill ex-style failed "
+                              "(will retry after first show)")
+
     def _round_pill(self, attempt=0):
         """Round the pill via the DWM compositor — GDI window regions are
         ignored by WebView2's composited rendering, but DWM corner preference
@@ -1455,12 +1707,11 @@ class DialFlow:
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 34, ctypes.byref(border), 4)
             # HUD behavior: WS_EX_NOACTIVATE so showing the pill can never
-            # steal focus from the field the user is dictating into
-            GWL_EXSTYLE = -20
-            ex = ctypes.windll.user32.GetWindowLongPtrW(phwnd, GWL_EXSTYLE)
-            ctypes.windll.user32.SetWindowLongPtrW(
-                phwnd, GWL_EXSTYLE,
-                ex | 0x08000000 | 0x00000080)  # NOACTIVATE | TOOLWINDOW
+            # steal focus from the field the user is dictating into, and
+            # WS_EX_TOOLWINDOW so it is NOT a taskbar/alt-tab entry — without
+            # it the bubble reads as a second app window, which is exactly
+            # the "it's a whole separate tab" complaint.
+            self._apply_pill_exstyle(phwnd)
             self._pill_hwnd = phwnd  # cached for the native animator
             try:
                 # dark form backing — kills the white fringe that peeks out
@@ -1482,34 +1733,68 @@ class DialFlow:
             else:
                 logging.exception("pill rounding failed")
 
+    @staticmethod
+    def _work_area():
+        """Work rect (l, t, r, b) of the monitor under the cursor — excludes
+        the taskbar, and follows the user across monitors."""
+        class POINT(ctypes.Structure):
+            _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+        class MRECT(ctypes.Structure):
+            _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long),
+                        ("r", ctypes.c_long), ("b", ctypes.c_long)]
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", MRECT),
+                        ("rcWork", MRECT), ("dwFlags", ctypes.c_ulong)]
+
+        u32 = ctypes.windll.user32
+        pt = POINT()
+        u32.GetCursorPos(ctypes.byref(pt))
+        u32.MonitorFromPoint.argtypes = [POINT, ctypes.c_ulong]
+        u32.MonitorFromPoint.restype = ctypes.c_void_p
+        hmon = u32.MonitorFromPoint(pt, 2)  # MONITOR_DEFAULTTONEAREST
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        u32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi))
+        return mi.rcWork.l, mi.rcWork.t, mi.rcWork.r, mi.rcWork.b
+
     def _pill_anchor(self):
-        """(center_x, bottom_y) on whichever monitor the cursor is on —
-        Wispr-style multi-monitor follow, above that monitor's taskbar."""
+        """(center_x, bottom_y) for the docked corner the user chose. The
+        pill still follows across monitors — it just keeps ITS corner."""
         try:
-            class POINT(ctypes.Structure):
-                _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
-
-            class MRECT(ctypes.Structure):
-                _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long),
-                            ("r", ctypes.c_long), ("b", ctypes.c_long)]
-
-            class MONITORINFO(ctypes.Structure):
-                _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", MRECT),
-                            ("rcWork", MRECT), ("dwFlags", ctypes.c_ulong)]
-
-            u32 = ctypes.windll.user32
-            pt = POINT()
-            u32.GetCursorPos(ctypes.byref(pt))
-            u32.MonitorFromPoint.argtypes = [POINT, ctypes.c_ulong]
-            u32.MonitorFromPoint.restype = ctypes.c_void_p
-            hmon = u32.MonitorFromPoint(pt, 2)  # MONITOR_DEFAULTTONEAREST
-            mi = MONITORINFO()
-            mi.cbSize = ctypes.sizeof(MONITORINFO)
-            u32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi))
-            wk = mi.rcWork
-            return wk.l + (wk.r - wk.l) // 2, wk.b - 18
+            l, t, r, b = self._work_area()
+            pos = self.settings.get("pill_pos", "bottom-center")
+            vert, _, horiz = pos.partition("-")
+            pad = PILL_PAD
+            w, _h = getattr(self, "_pill_wh", (MINI_W, MINI_H))
+            if horiz == "left":
+                cx = l + pad + w // 2
+            elif horiz == "right":
+                cx = r - pad - w // 2
+            else:
+                cx = l + (r - l) // 2
+            by = (t + pad + PILL_H) if vert == "top" else (b - pad)
+            return cx, by
         except Exception:
             return None
+
+    def _snap_pos(self, x, y, w, h):
+        """Nearest dock zone for a window the user just dropped."""
+        try:
+            l, t, r, b = self._work_area()
+        except Exception:
+            return self.settings.get("pill_pos", "bottom-center")
+        cx, cy = x + w / 2, y + h / 2
+        vert = "top" if cy < t + (b - t) / 2 else "bottom"
+        third = (r - l) / 3
+        if cx < l + third:
+            horiz = "left"
+        elif cx > r - third:
+            horiz = "right"
+        else:
+            horiz = "center"
+        return f"{vert}-{horiz}"
 
     def _move_pill(self):
         anchor = self._pill_anchor()
@@ -1519,6 +1804,73 @@ class DialFlow:
                 self.pill_win.move(anchor[0] - w // 2, anchor[1] - h)
             except Exception:
                 pass
+
+    # ---------- pill drag + controls (called from PILL_HTML) ----------
+
+    def pill_drag(self):
+        """Native window drag: hand the mouse to Windows via WM_NCLBUTTONDOWN
+        so the pill moves at compositor speed instead of round-tripping every
+        mousemove through the JS bridge. Blocks until the drag ends, then the
+        pill docks to the nearest zone."""
+        hwnd = getattr(self, "_pill_hwnd", None)
+        if not hwnd:
+            return
+        try:
+            u32 = ctypes.windll.user32
+            self._pill_dragging = True
+            u32.ReleaseCapture()
+            u32.SendMessageW(hwnd, 0x00A1, 2, 0)  # WM_NCLBUTTONDOWN, HTCAPTION
+
+            class RECT(ctypes.Structure):
+                _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long),
+                            ("r", ctypes.c_long), ("b", ctypes.c_long)]
+
+            rc = RECT()
+            u32.GetWindowRect(hwnd, ctypes.byref(rc))
+            pos = self._snap_pos(rc.l, rc.t, rc.r - rc.l, rc.b - rc.t)
+            if pos != self.settings.get("pill_pos"):
+                self.settings["pill_pos"] = pos
+                self.settings.save()
+                self._js(self.main_win,
+                         f"app.pillPos({json.dumps(pos)})")
+            logging.info("pill docked %s", pos)
+        except Exception:
+            logging.exception("pill drag failed")
+        finally:
+            self._pill_dragging = False
+            self._move_pill()
+
+    def pill_cancel(self):
+        """X on the pill: drop whatever is in flight."""
+        if self.engine is not None:
+            self.engine.cancel()
+
+    def pill_open(self):
+        self._show_main()
+
+    def _busy(self):
+        return (self.engine is not None
+                and (self.engine.recording
+                     or getattr(self, "_pill_processing", False)))
+
+    def pill_hover_in(self):
+        """Grow so the label and controls have room. This has to work DURING
+        a recording too — cancelling mid-take is the whole point of the
+        button."""
+        if getattr(self, "_pill_dragging", False):
+            return
+        self._hover_grown = True
+        threading.Thread(target=self._animate_pill, args=("hover",),
+                         daemon=True).start()
+
+    def pill_hover_out(self):
+        if not getattr(self, "_hover_grown", False) or \
+                getattr(self, "_pill_dragging", False):
+            return
+        self._hover_grown = False
+        # back to whichever size the engine state owns
+        threading.Thread(target=self._animate_pill, args=(self._busy(),),
+                         daemon=True).start()
 
     def _pill_follower(self):
         while not self.quitting:
@@ -1543,12 +1895,21 @@ class DialFlow:
 
     def _animate_pill(self, expand):
         """Eased window-size animation between the idle bubble and the full
-        pill, anchored bottom-center so it grows in place. Drives raw
+        pill, anchored to its docked corner so it grows in place. Drives raw
         SetWindowPos on the cached hwnd — pywebview's resize/move marshal
-        through the UI thread and stutter, especially right after show()."""
+        through the UI thread and stutter, especially right after show().
+
+        expand: True -> recording pill, False -> idle bubble, "hover" ->
+        the slightly wider size that fits the label and controls."""
         self._anim_token = getattr(self, "_anim_token", 0) + 1
         token = self._anim_token
-        end = (PILL_W, PILL_H) if expand else (MINI_W, MINI_H)
+        if expand == "hover":
+            end = (HOVER_W, HOVER_H)
+        elif expand:
+            end = (PILL_W, PILL_H)
+        else:
+            end = (MINI_W, MINI_H)
+        expand = bool(expand)
         start = getattr(self, "_pill_wh", (MINI_W, MINI_H))
         if start == end:
             return
@@ -1689,6 +2050,14 @@ class DialFlow:
                     # keep the pill expanded with a spinner until the text lands
                     self._pill_processing = True
                     self._js(self.pill_win, "app.mode('processing')")
+                elif state == "error":
+                    # a failed take must be visible without opening the app —
+                    # the pill holds the failure until it is acknowledged or
+                    # the next recording starts
+                    self._pill_processing = False
+                    self._show_pill_now()
+                    threading.Thread(target=self._pill_fail, args=(detail,),
+                                     daemon=True).start()
                 elif getattr(self, "_pill_processing", False) and state == "idle":
                     # designed T3 exit: success flash → empty shrink → breathe
                     self._pill_processing = False
@@ -1699,6 +2068,32 @@ class DialFlow:
                     self._pill_to_idle()
             except Exception:
                 pass
+
+    def _show_pill_now(self):
+        """Bring the pill up without stealing focus from the user's field."""
+        try:
+            prev_fg = ctypes.windll.user32.GetForegroundWindow()
+            self.pill_win.show()
+            self._pill_visible = True
+            threading.Timer(0.05, self._restore_focus, args=(prev_fg,)).start()
+            threading.Timer(0.25, self._round_pill).start()
+        except Exception:
+            logging.exception("pill show failed")
+
+    def _pill_fail(self, detail):
+        """Hold a readable failure on the pill, then settle back to idle."""
+        try:
+            msg = (detail or "Transcription failed").split(" — ")[0]
+            self._animate_pill(True)
+            self._js(self.pill_win, f"app.failed({json.dumps(msg)})")
+            for _ in range(60):          # ~6s, but yield to a new recording
+                if self.quitting or (self.engine is not None
+                                     and self.engine.recording):
+                    return
+                time.sleep(0.1)
+            self._pill_settle(False)
+        except Exception:
+            logging.exception("pill fail state failed")
 
     def _hide_pill(self):
         try:
@@ -1856,6 +2251,7 @@ class DialFlow:
             logging.exception("titlebar theme failed")
 
     def _post_start(self):
+        self._hide_pill_from_taskbar()
         self._setup_tray()
         threading.Thread(target=self._update_loop, daemon=True).start()
         # keep the Run-key path fresh in case the exe was moved
@@ -1881,7 +2277,7 @@ class DialFlow:
             background_color="#131316" if self._theme_is_dark() else "#FAFAF8")
         self.main_win.events.closing += self._on_closing
         self.pill_win = webview.create_window(
-            "Dial Flow — recording", html=PILL_HTML,
+            "Dial Flow — recording", html=PILL_HTML, js_api=PillApi(self),
             width=PILL_W, height=PILL_H, x=sw // 2 - PILL_W // 2, y=sh - 118,
             # override pywebview's silent 200x100 default min — it must be
             # allowed to shrink all the way down to the idle bubble
