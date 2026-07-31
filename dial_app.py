@@ -57,11 +57,13 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "3.1.0"
+APP_VERSION = "3.2.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
 PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
 UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
+UPDATE_EVERY_H = 6  # re-check interval; a launch-only check never reaches a
+                    # tray-resident app that stays open for days
 API_URL = "https://api.cohere.com/v2/audio/transcriptions"
 CHAT_URL = "https://api.cohere.com/v2/chat"
 MODELS_URL = "https://api.cohere.com/v1/models"
@@ -1026,6 +1028,9 @@ class Api:
     def do_update(self):
         return self._app.do_update()
 
+    def check_update(self):
+        return self._app.check_update()
+
     def undo_ai(self, ts):
         return self._app.undo_ai(ts)
 
@@ -1263,32 +1268,82 @@ class DialFlow:
         nums = re.findall(r"\d+", s or "")
         return tuple(int(x) for x in nums[:3]) if nums else (0,)
 
-    def _update_check(self):
-        """Once per launch: ask GitHub for the latest release and offer it."""
+    def _update_loop(self):
+        """A launch check alone never reaches an app that stays open for days
+        (or starts minimized to the tray and is never opened). Re-check on a
+        schedule and announce through the tray, not just the in-app banner."""
         time.sleep(4)
+        while not self.quitting:
+            self._do_update_check()
+            for _ in range(UPDATE_EVERY_H * 60):
+                if self.quitting:
+                    return
+                time.sleep(60)
+
+    def _do_update_check(self):
+        """Returns a dict for the Settings 'Check now' button; also drives
+        the banner + tray toast. Never raises."""
         try:
             r = requests.get(UPDATE_API, timeout=15,
                              headers={"User-Agent": "DialFlow"})
             if r.status_code != 200:
-                return
+                logging.warning("update check http %s", r.status_code)
+                return {"status": "error", "version": APP_VERSION}
             data = r.json()
             tag = data.get("tag_name", "")
             if self._vtuple(tag) <= self._vtuple(APP_VERSION):
-                return
+                return {"status": "current", "version": APP_VERSION}
             url = next((a["browser_download_url"]
                         for a in data.get("assets", [])
                         if a.get("name", "").lower().endswith(".exe")), None)
             if not url:
-                return
+                logging.warning("release %s has no .exe asset", tag)
+                return {"status": "error", "version": APP_VERSION}
             self._update_url = url
             logging.info("update available: %s", tag)
             self._js(self.main_win, f"app.updateAvailable({json.dumps(tag)})")
+            # toast once per version — the banner is invisible when the app
+            # sits in the tray, which is where it spends most of its life
+            if getattr(self, "_notified_tag", None) != tag:
+                self._notified_tag = tag
+                self._notify(f"Dial Flow {tag} is ready",
+                             "Open Dial Flow and hit Update now — it installs "
+                             "itself and restarts.")
+            return {"status": "available", "tag": tag, "version": APP_VERSION}
         except Exception:
             logging.exception("update check failed")
+            return {"status": "error", "version": APP_VERSION}
+
+    def _notify(self, title, message):
+        if self.tray is None:
+            return
+        try:
+            self.tray.notify(message, title)
+        except Exception:
+            logging.exception("tray notify failed")
+
+    def check_update(self):
+        """Manual check from Settings / the tray menu."""
+        return self._do_update_check()
+
+    def _tray_check_update(self):
+        def run():
+            res = self._do_update_check()
+            if res.get("status") == "current":
+                self._notify("Dial Flow is up to date",
+                             f"You're on {APP_VERSION}, the latest version.")
+            elif res.get("status") == "error":
+                self._notify("Couldn't check for updates",
+                             "No connection to GitHub — see app.log.")
+        threading.Thread(target=run, daemon=True).start()
 
     def do_update(self):
-        if not getattr(sys, "frozen", False) or not getattr(self, "_update_url", None):
-            return {"ok": False}
+        if not getattr(self, "_update_url", None):
+            return {"ok": False, "reason": "no update"}
+        if not getattr(sys, "frozen", False):
+            # running from source — swapping sys.executable would clobber
+            # the Python interpreter itself
+            return {"ok": False, "reason": "dev"}
         threading.Thread(target=self._update_worker, daemon=True).start()
         return {"ok": True}
 
@@ -1307,10 +1362,21 @@ class DialFlow:
                 raise ValueError("downloaded file suspiciously small")
             cur = sys.executable
             bat = os.path.join(CONFIG_DIR, "update.bat")
+            # the swap races this process's own exit — Windows keeps the exe
+            # locked until every thread is gone, so retry for ~30s instead of
+            # failing once and silently relaunching the OLD build
             with open(bat, "w", encoding="ascii") as f:
                 f.write('@echo off\n'
-                        'ping -n 4 127.0.0.1 > nul\n'
-                        f'move /y "{new_path}" "{cur}"\n'
+                        'ping -n 4 127.0.0.1 >nul\n'
+                        'set RETRY=0\n'
+                        ':retry\n'
+                        f'move /y "{new_path}" "{cur}" >nul 2>&1\n'
+                        'if not errorlevel 1 goto done\n'
+                        'set /a RETRY+=1\n'
+                        'if %RETRY% GEQ 15 goto done\n'
+                        'ping -n 3 127.0.0.1 >nul\n'
+                        'goto retry\n'
+                        ':done\n'
                         f'start "" "{cur}"\n'
                         'del "%~f0"\n')
             import subprocess
@@ -1705,6 +1771,8 @@ class DialFlow:
             menu = pystray.Menu(
                 pystray.MenuItem("Open Dial Flow",
                                  lambda: self._show_main(), default=True),
+                pystray.MenuItem("Check for updates",
+                                 lambda: self._tray_check_update()),
                 pystray.MenuItem("Quit", lambda: self._shutdown()),
             )
             self.tray = pystray.Icon("DialFlow", img,
@@ -1789,7 +1857,7 @@ class DialFlow:
 
     def _post_start(self):
         self._setup_tray()
-        threading.Thread(target=self._update_check, daemon=True).start()
+        threading.Thread(target=self._update_loop, daemon=True).start()
         # keep the Run-key path fresh in case the exe was moved
         if self.settings.get("autostart") and getattr(sys, "frozen", False):
             _apply_autostart(True)

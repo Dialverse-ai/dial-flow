@@ -698,6 +698,10 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
             <div class="switch" id="idlepill-switch" role="switch" tabindex="0" onclick="toggleIdlePill()"
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleIdlePill()}"></div>
           </div>
+          <div class="set-row">
+            <div><div class="sl" id="upd-ver">Version</div><div class="ss" id="upd-sub">checks automatically every few hours</div></div>
+            <button class="btn-2nd" id="upd-btn" onclick="checkUpdate()">Check now</button>
+          </div>
         </div>
         <div class="set-note" id="ver-note">Dial Flow · by Dialverse · key stored on this device only</div>
       </div>
@@ -788,6 +792,7 @@ window.app = {
   },
   setLanguage(lang){ segSet('seg-lang', lang); },
   updateAvailable(tag){
+    $('upd-sub').textContent = `${tag} is available — update from the Dictation page.`;
     $('update-title').textContent = `Dial Flow ${tag} is available`;
     $('update-sub').textContent = 'One click — it downloads, swaps itself, and relaunches.';
     $('update-btn').style.display = '';
@@ -807,7 +812,32 @@ window.app = {
     }
   }
 };
-function doUpdate(){ api('do_update'); }
+function doUpdate(){
+  api('do_update').then(r => {
+    if (r && r.ok) return;
+    $('update-btn').disabled = false;
+    $('update-sub').textContent = (r && r.reason === 'dev')
+      ? 'Self-update only works in the packaged app — grab the exe from GitHub releases.'
+      : 'Update failed — or download it from github.com/Dialverse-ai/dial-flow/releases';
+  });
+}
+function checkUpdate(){
+  const b = $('upd-btn');
+  b.disabled = true; b.textContent = 'Checking…';
+  $('upd-sub').textContent = 'Asking GitHub for the latest release…';
+  api('check_update').then(r => {
+    b.disabled = false; b.textContent = 'Check now';
+    if (!r){ $('upd-sub').textContent = 'Check unavailable.'; return; }
+    if (r.status === 'available'){
+      $('upd-sub').textContent = `${r.tag} is available — see the banner on the Dictation page.`;
+      go('dictation');
+    } else if (r.status === 'current'){
+      $('upd-sub').textContent = "You're on the latest version.";
+    } else {
+      $('upd-sub').textContent = "Couldn't reach GitHub — check your connection.";
+    }
+  });
+}
 function esc(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 /* ---------- history feed ---------- */
@@ -1387,9 +1417,11 @@ function boot(init){
   $('sel-paste').onchange = () => setSetting('paste_mode', $('sel-paste').value);
   $('sel-theme').value = S.theme || 'system';
   $('sel-theme').onchange = () => { setSetting('theme', $('sel-theme').value); applyTheme(); };
-  if (init.version)
+  if (init.version){
     $('ver-note').textContent =
       `Dial Flow ${init.version} · by Dialverse · key stored on this device only`;
+    $('upd-ver').textContent = `Version ${init.version}`;
+  }
   renderFeed(); renderRail(); renderHints();
   window.app.setState('idle', '');
 }
