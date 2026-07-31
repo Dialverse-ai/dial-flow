@@ -161,8 +161,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   box-shadow:var(--e3),0 0 0 1px rgba(var(--sh-a),.04);
   padding:48px 62px 42px;position:relative;overflow:hidden;
   animation:fadeUp .62s var(--out) backwards}
-.setup-box::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;
-  background:var(--brand-90);opacity:.9}
+.setup-box::before{content:'';position:absolute;inset:0;border-radius:inherit;
+  pointer-events:none;
+  background:var(--brand-90) top left/100% 3px no-repeat;opacity:.9}
 .setup-box::after{content:'';position:absolute;top:-210px;left:50%;width:420px;height:420px;
   margin-left:-210px;border-radius:999px;pointer-events:none;
   background:radial-gradient(closest-side,var(--accent-wash),transparent)}
@@ -308,9 +309,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   -webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%);
   box-shadow:var(--e3);
   transition:box-shadow .35s var(--ease),transform .4s var(--spring)}
-.status-card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;z-index:3;
-  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
-  background-size:200% 100%;opacity:.18;transition:opacity .3s ease}
+/* Accent rules span the FULL card and inherit its radius, painting only a
+   2px strip via background. A 2px-tall element sits on the card's flat top
+   edge, so its ends jut past where the corner curve begins — the rule looked
+   like it was floating outside the card. Backgrounds are clipped by
+   border-radius; a short element is not. */
+.status-card::before{content:'';position:absolute;inset:0;z-index:3;
+  border-radius:inherit;pointer-events:none;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent))
+             top left/200% 2px no-repeat;
+  opacity:.18;transition:opacity .3s ease}
 /* the card answers the engine state — a slow brand sweep while live */
 .status-card:has(#spill.recording)::before,
 .status-card:has(#spill.command)::before,
@@ -608,9 +616,11 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   box-shadow:var(--e2),0 16px 34px -22px var(--accent-glow);
   align-items:center;justify-content:space-between;gap:14px;flex:none;
   animation:cardIn .5s var(--out) backwards}
-#update-banner::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
-  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
-  background-size:200% 100%;animation:yfSweep 3.4s linear infinite}
+#update-banner::before{content:'';position:absolute;inset:0;
+  border-radius:inherit;pointer-events:none;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent))
+             top left/200% 2px no-repeat;
+  animation:yfSweep 3.4s linear infinite}
 #update-banner.on{display:flex}
 #update-banner .ut{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;
   color:var(--accent-text)}
@@ -628,9 +638,10 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
   transition:transform .45s var(--spring),box-shadow .4s var(--ease)}
 .ins-card>*{position:relative;z-index:1}
-.ins-card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;z-index:2;
-  border-radius:20px 20px 0 0;
-  background:var(--grad-90);transform:scaleX(0);transform-origin:left;
+.ins-card::before{content:'';position:absolute;inset:0;z-index:2;
+  border-radius:inherit;pointer-events:none;
+  background:var(--grad-90) top left/100% 2px no-repeat;
+  transform:scaleX(0);transform-origin:left;
   transition:transform .5s var(--out)}
 .ins-card::after{content:'';position:absolute;inset:0;z-index:0;border-radius:inherit;
   pointer-events:none;opacity:0;transition:opacity .4s ease;
@@ -784,7 +795,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   border:1px solid transparent;
   box-shadow:var(--e2),0 20px 44px -28px var(--accent-glow);
   animation:cardIn .55s .06s var(--out) backwards}
-.dic-hero::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;background:var(--grad-90)}
+.dic-hero::before{content:'';position:absolute;inset:0;border-radius:inherit;
+  pointer-events:none;background:var(--grad-90) top left/100% 2px no-repeat}
 .dic-hero::after{content:'';position:absolute;top:-62%;right:-6%;width:250px;height:250px;
   border-radius:999px;pointer-events:none;
   background:radial-gradient(closest-side,var(--accent-wash),transparent)}

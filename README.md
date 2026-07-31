@@ -17,7 +17,12 @@
 </p>
 
 <p align="center">
-  <img src="assets/dictation.png" width="820" alt="Dial Flow — Dictation">
+  <img src="assets/dictation.png" width="880" alt="Dial Flow — Dictation">
+</p>
+
+<p align="center">
+  <img src="assets/dictation-dark.png" width="440" alt="Dial Flow — Dictation, dark">
+  <img src="assets/insights-dark.png" width="440" alt="Dial Flow — Insights, dark">
 </p>
 
 ---
@@ -40,17 +45,25 @@ We wrapped it in a desktop experience we love, and it costs the team **nothing t
 | **Flow mode** | AI fixes grammar, restructures rambling sentences, breaks paragraphs, and turns spoken enumerations into lists — «يعني... امم» goes in, organized text comes out. Toggle it off for word-for-word. |
 | **App-aware** | Knows where you're dictating: emails get clean paragraphs, chats stay casual, code stays plain text. |
 | **Command mode** | Select any text, press <kbd>F8</kbd>, and say the edit — *"make this formal"*, *"ترجمه للعربي"*, *"shorten it"*. It rewrites in place. |
-| **Tone presets** | Auto, Professional, or Casual — one click on the dictation page. |
+| **Tone presets** | Auto, ✦ Prompt, Professional or Casual — one click on the dictation page. Prompt mode reorganizes a rambling dictation into a clean brief for an AI, in your own words. |
+| **Refine** | <kbd>F4</kbd> and speak a change to the last thing you dictated — *"make it shorter"*, *"drop point three"*. No selecting required. |
+| **Raw take** | Hold <kbd>Shift</kbd> as you start recording for one take with Flow off — exactly as spoken. |
+| **Prompt framings** | Put `{}` in a snippet and it becomes a reusable template: say *"review framing &lt;what you want&gt;"* and your words drop into the slot. |
 | **Auto language** | Speak Arabic, English or both — no toggle needed (F10 still switches if you want to pin one). |
 | **Dictionary** | Teach it your client names and company jargon once — spelled right forever, in both languages. |
 | **Insights** | Words dictated, speed in WPM, language mix, and a 6-month streak heatmap. |
-| **The pill** | A little floating bar follows your cursor across monitors — pulsing while you talk, spinning while it transcribes. |
+| **The floating bar** | Drag it to the left, bottom or right edge — it stands upright on the sides and follows you across monitors. Hover for a cancel button, or open it into a panel. Failures show up right there. |
 | **Lives in the tray** | Close the window, hotkeys stay live. Optional *Start with Windows*. |
 | **Light & dark** | A clean modern UI that follows your Windows theme — or pin it either way. |
 | **Private by design** | History and audio stay on your machine. Each person uses their own free API key. |
 
 <p align="center">
-  <img src="assets/dictionary.png" width="820" alt="Dial Flow — Dictionary">
+  <img src="assets/insights.png" width="880" alt="Dial Flow — Insights">
+</p>
+
+<p align="center">
+  <img src="assets/dictionary.png" width="440" alt="Dial Flow — Dictionary &amp; snippets">
+  <img src="assets/settings.png" width="440" alt="Dial Flow — Settings">
 </p>
 
 ## Get started — 3 minutes / التثبيت
