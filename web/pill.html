@@ -3,45 +3,49 @@
 html{background:#171320}
 html,body{overflow:hidden}
 /* ---- the object -------------------------------------------------------
-   One capsule of dark plum glass. Lighter at the crown, darker at the
-   foot, so it reads convex instead of like a filled rectangle. */
+   One slab of dark plum glass PINNED FLUSH to the docked screen edge. It
+   is a handle growing out of the edge, not a capsule floating near it —
+   so the docked side is square and unlit, and only the outward face gets
+   the rim light and the corner radius. That asymmetry is the whole read:
+   the edge is where it lives, the outward face is where it opens. */
 body{font-family:'Segoe UI',system-ui,sans-serif;height:100vh;position:relative;
 cursor:default;-webkit-user-select:none;user-select:none;
-border:1px solid rgba(247,244,236,.20);border-radius:13px;
 background:radial-gradient(135% 190% at 50% -35%,#2B233A 0%,#1E1829 44%,#15111F 100%),#171320;
 box-shadow:inset 0 -8px 15px -9px rgba(0,0,0,.8),
 inset 0 9px 18px -12px rgba(180,152,255,.4)}
-/* Rim light + contact shade. Both strips SPAN THE FULL BOX with
-   border-radius:inherit and are painted as sized backgrounds, so the
-   corner curve clips them. Never a short absolutely-positioned strip
-   parked on the flat top edge — its ends jut past the curve. */
+/* Corner radius + hairline border on the THREE outward sides only. The
+   docked side stays square and borderless so no seam shows against the
+   screen edge. */
+body.dock-bottom{border-radius:12px 12px 0 0;
+border:1px solid rgba(247,244,236,.20);border-bottom:0}
+body.dock-left{border-radius:0 12px 12px 0;
+border:1px solid rgba(247,244,236,.20);border-left:0}
+body.dock-right{border-radius:12px 0 0 12px;
+border:1px solid rgba(247,244,236,.20);border-right:0}
+/* Rim light rides the OUTWARD face. Full-span sized background, radius
+   inherited, so the corner curve clips it — never a short absolutely
+   positioned strip, whose ends jut past the curve. */
 body::before{content:'';position:absolute;inset:0;border-radius:inherit;
-pointer-events:none;z-index:5;background:
-linear-gradient(90deg,rgba(247,244,236,0) 5%,rgba(247,244,236,.55) 50%,rgba(247,244,236,0) 95%) top left/100% 1.5px no-repeat,
-linear-gradient(90deg,rgba(0,0,0,0) 9%,rgba(0,0,0,.5) 50%,rgba(0,0,0,0) 91%) bottom left/100% 3px no-repeat}
-/* standing up, the highlight runs down the long edge like light on a cylinder */
-body.vert::before{background:
-linear-gradient(180deg,rgba(247,244,236,0) 5%,rgba(247,244,236,.5) 50%,rgba(247,244,236,0) 95%) top left/1.5px 100% no-repeat,
-linear-gradient(180deg,rgba(0,0,0,0) 9%,rgba(0,0,0,.5) 50%,rgba(0,0,0,0) 91%) top right/3px 100% no-repeat}
-body.hov,body.panel{border-radius:15px}
-/* :not(.hov) — at hover size the pill must keep the full frame, not the
-   tiny bubble's borderless capsule one */
-/* :not(.panel) matters: opening the panel from idle gives class "mini panel",
-   and body.mini:not(.hov) out-specifies body.panel — the 999px capsule radius
-   won and clipped the 232x150 panel to an ellipse, cutting off its own label
-   and hint. */
-body.mini:not(.hov):not(.panel){border:none;border-radius:999px;
-box-shadow:inset 0 0 0 1px rgba(247,244,236,.14),
-inset 0 -3px 6px -4px rgba(0,0,0,.75),
-inset 0 3px 7px -5px rgba(180,152,255,.45)}
-body.mini:not(.hov)::before{background:
-linear-gradient(90deg,rgba(247,244,236,0) 14%,rgba(247,244,236,.5) 50%,rgba(247,244,236,0) 86%) top left/100% 1px no-repeat}
-body.mini.vert:not(.hov)::before{background:
-linear-gradient(180deg,rgba(247,244,236,0) 14%,rgba(247,244,236,.45) 50%,rgba(247,244,236,0) 86%) top left/1px 100% no-repeat}
+pointer-events:none;z-index:5;background:none}
+body.dock-bottom::before{background:
+linear-gradient(90deg,rgba(247,244,236,0) 6%,rgba(247,244,236,.5) 50%,rgba(247,244,236,0) 94%) top left/100% 1.5px no-repeat}
+body.dock-left::before{background:
+linear-gradient(180deg,rgba(247,244,236,0) 6%,rgba(247,244,236,.45) 50%,rgba(247,244,236,0) 94%) top right/1.5px 100% no-repeat}
+body.dock-right::before{background:
+linear-gradient(180deg,rgba(247,244,236,0) 6%,rgba(247,244,236,.45) 50%,rgba(247,244,236,0) 94%) top left/1.5px 100% no-repeat}
+/* The tab is smaller and quieter than the working states — a resting
+   handle, not a HUD. Softer radius, no hard border, just an inner seat. */
+body.tab{border:none;box-shadow:
+inset 0 0 0 1px rgba(247,244,236,.13),
+inset 0 -3px 7px -5px rgba(0,0,0,.8),
+inset 0 4px 9px -6px rgba(180,152,255,.4)}
+body.tab.dock-bottom{border-radius:9px 9px 0 0}
+body.tab.dock-left{border-radius:0 9px 9px 0}
+body.tab.dock-right{border-radius:9px 0 0 9px}
 /* ---- motion ---- */
 @keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
-@keyframes pillBreathe{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:.95;transform:scale(1.08)}}
-@keyframes emberPulse{0%,100%{opacity:.5;transform:scale(.75)}50%{opacity:1;transform:scale(1.2)}}
+@keyframes tabBreathe{0%,100%{opacity:.42}50%{opacity:.95}}
+@keyframes emberPulse{0%,100%{opacity:.5;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
 @keyframes pillDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.76);opacity:.58}}
 @keyframes recBreath{0%,100%{opacity:.65}50%{opacity:1}}
 @keyframes pillShim{0%,100%{opacity:.2}50%{opacity:.95}}
@@ -54,16 +58,20 @@ linear-gradient(180deg,rgba(247,244,236,0) 14%,rgba(247,244,236,.45) 50%,rgba(24
 /* ---- layers ---- */
 .layer{position:absolute;inset:0;display:flex;align-items:center;
 justify-content:center;gap:8px}
-/* ---- 1. idle: a breathing ember ---- */
-#core{position:relative;width:19px;height:4px;border-radius:999px;
-background:linear-gradient(90deg,rgba(108,85,232,0),rgba(108,85,232,.85) 22%,
-rgba(203,186,255,.95) 50%,rgba(108,85,232,.85) 78%,rgba(108,85,232,0));
-box-shadow:0 0 9px rgba(108,85,232,.6);
-animation:coreIn .4s ease-out both,pillBreathe 4.6s ease-in-out .4s infinite}
-#core::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;
-margin:-2px 0 0 -2px;border-radius:999px;background:#EFE9FF;
-box-shadow:0 0 6px 1px rgba(196,176,255,.85);
+/* ---- 1. idle: the edge tab ----------------------------------------------
+   A seam of light lying along the tab's long axis with the ember riding
+   its middle. Reads as a handle with a pilot light, not a floating dot. */
+#core{position:relative;width:34px;height:2px;border-radius:999px;
+background:linear-gradient(90deg,rgba(108,85,232,0),rgba(108,85,232,.7) 20%,
+rgba(203,186,255,.9) 50%,rgba(108,85,232,.7) 80%,rgba(108,85,232,0));
+animation:coreIn .4s ease-out both,tabBreathe 4.6s ease-in-out .4s infinite}
+#core::after{content:'';position:absolute;left:50%;top:50%;width:5px;height:5px;
+margin:-2.5px 0 0 -2.5px;border-radius:999px;background:#EFE9FF;
+box-shadow:0 0 7px 1px rgba(196,176,255,.9);
 animation:emberPulse 4.6s ease-in-out .4s infinite}
+body.vert #core{width:2px;height:34px;
+background:linear-gradient(180deg,rgba(108,85,232,0),rgba(108,85,232,.7) 20%,
+rgba(203,186,255,.9) 50%,rgba(108,85,232,.7) 80%,rgba(108,85,232,0))}
 /* ---- 2. recording: the waveform is the hero ---- */
 #rec-l{gap:7px}
 #recwash{position:absolute;inset:0;border-radius:inherit;
@@ -116,7 +124,13 @@ box-shadow:inset 0 0 0 1px rgba(242,107,94,.55)}
 #fail-l svg{flex:none;filter:drop-shadow(0 0 6px rgba(242,107,94,.65))}
 #fail-l b{font-size:11.5px;font-weight:600;color:#FFB5AA;white-space:nowrap;
 min-width:0;overflow:hidden;text-overflow:ellipsis}
-/* ---- 6. hover controls ---- */
+/* ---- 6. hover controls -------------------------------------------------
+   Bottom dock lays them out in a row. A SIDE dock keeps the upright
+   footprint and stacks them in a column instead of flipping to a wide
+   box — flipping made the window shrink vertically out from under the
+   cursor, which fired mouseleave, which shrank it back, which re-entered:
+   the flicker that made these buttons unclickable. The hover box now
+   always CONTAINS the box it grew from, on both axes. */
 #hov-l{gap:5px;padding:0 8px;cursor:grab}
 #hov-l:active{cursor:grabbing}
 #grip{width:8px;height:15px;flex:none;margin-right:2px;opacity:.55;
@@ -125,6 +139,15 @@ background-size:4px 4px;transition:opacity .14s}
 #hov-l:hover #grip{opacity:.85}
 #hov-t{flex:1;min-width:0;font-size:11px;font-weight:600;color:#F1EADC;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+/* upright hover: a column — grip on the outward end, label rotated to
+   run with the edge, buttons stacked and full-width so they are fat
+   targets even in a 54px-wide window */
+body.vert.hov #hov-l{flex-direction:column;gap:7px;padding:9px 0}
+body.vert.hov #grip{width:15px;height:8px;margin:0 0 1px 0;
+background-size:4px 4px}
+body.vert.hov #hov-t{flex:1;min-height:0;max-height:64px;text-align:center;
+writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px}
+body.vert.hov .pbtn{width:30px;height:30px;border-radius:9px}
 .pbtn{position:relative;width:22px;height:22px;flex:none;border:0;border-radius:7px;
 cursor:pointer;padding:0;color:#EFE9DC;display:flex;align-items:center;
 justify-content:center;font:inherit;
@@ -152,7 +175,8 @@ text-transform:uppercase;color:#8C82B6}
 #panel-l #panel-hint{text-transform:none;letter-spacing:.01em;font-size:10px;
 font-weight:500;color:#968CC2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #dock{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-/* each tile is a little screen; the violet bar sits on the edge it docks to */
+/* each tile is a little screen; the violet bar sits ON the edge it docks
+   to, flush, mirroring how the real tab sits on the real screen edge */
 #dock button{position:relative;height:44px;padding:0;cursor:pointer;overflow:hidden;
 border:1px solid rgba(247,244,236,.10);border-radius:8px;
 background:linear-gradient(180deg,rgba(247,244,236,.07),rgba(247,244,236,.02));
@@ -166,18 +190,16 @@ border-color:rgba(156,134,246,.5)}
 #dock button.on{background:linear-gradient(180deg,rgba(156,134,246,.32),rgba(108,85,232,.14));
 border-color:#9C86F6;box-shadow:inset 0 0 12px rgba(108,85,232,.4)}
 #dock button:focus-visible{outline:2px solid #9C86F6;outline-offset:1px}
-#dock button i{display:block;position:absolute;border-radius:999px;
-background:linear-gradient(90deg,#6C55E8,#C6B4FF);transition:all .14s}
+#dock button i{display:block;position:absolute;background:linear-gradient(90deg,#6C55E8,#C6B4FF);
+transition:all .14s}
 #dock button.on i{box-shadow:0 0 8px rgba(156,134,246,.95)}
-#dock button[data-p=bottom] i{width:20px;height:4px;left:50%;transform:translateX(-50%);bottom:5px}
-#dock button[data-p=left] i,#dock button[data-p=right] i{width:4px;height:20px;top:50%;
+#dock button[data-p=bottom] i{width:22px;height:5px;left:50%;transform:translateX(-50%);
+bottom:0;border-radius:3px 3px 0 0}
+#dock button[data-p=left] i,#dock button[data-p=right] i{width:5px;height:22px;top:50%;
 transform:translateY(-50%);background:linear-gradient(180deg,#6C55E8,#C6B4FF)}
-#dock button[data-p=left] i{left:5px}
-#dock button[data-p=right] i{right:5px}
+#dock button[data-p=left] i{left:0;border-radius:0 3px 3px 0}
+#dock button[data-p=right] i{right:0;border-radius:3px 0 0 3px}
 /* ---- vertical (side-docked) — a deliberate upright layout ---- */
-body.vert #core{width:4px;height:19px;
-background:linear-gradient(180deg,rgba(108,85,232,0),rgba(108,85,232,.85) 22%,
-rgba(203,186,255,.95) 50%,rgba(108,85,232,.85) 78%,rgba(108,85,232,0))}
 body.vert #rec-l{flex-direction:column;gap:7px}
 body.vert #wave{flex-direction:column-reverse;gap:2.5px;
 background:linear-gradient(180deg,rgba(242,107,94,0),rgba(242,107,94,.32) 16%,
@@ -190,6 +212,13 @@ body.vert #pdots{flex-direction:column;gap:3px}
 body.vert #fail-l{flex-direction:column;padding:11px 0}
 body.vert #fail-l b{writing-mode:vertical-rl;transform:rotate(180deg);
 min-width:auto;min-height:0}
+/* ---- travelling between docks ------------------------------------------
+   While the window slides along the screen edge to a new dock, the
+   contents would otherwise reflow every frame and the orientation flip
+   would strobe. Hold a quiet slab for the trip. */
+body.moving .layer{opacity:0;transition:opacity .1s}
+body.moving{box-shadow:inset 0 0 0 1px rgba(247,244,236,.16),
+inset 0 0 20px rgba(108,85,232,.35)}
 /* ---- state visibility ---- */
 .layer,#recwash,#flashrim,#failwash{display:none}
 body.mini #core-l{display:flex}
@@ -221,7 +250,7 @@ body.hov #hov-l{display:flex}
  .pspin i{animation:pillSpin 1.9s linear infinite!important}
  .pbtn,#grip,#dock button,#dock button i{transition:none}
 }
-</style></head><body class="mini">
+</style></head><body class="mini tab dock-bottom">
 <div id="recwash"></div><div id="flashrim"></div><div id="failwash"></div>
 <div class="layer" id="core-l" data-od-id="idle-layer"><div id="core"></div></div>
 <div class="layer" id="rec-l" data-od-id="recording-layer">
@@ -274,7 +303,7 @@ body.hov #hov-l{display:flex}
 </div>
 <script>
 let startedAt=0,lvl=0,disp=0,base='mini',hovering=false,busy=false;
-let panelOpen=false,dragging=false,dock='bottom',vertical=false;
+let panelOpen=false,dragging=false,dock='bottom',vertical=false,moving=false;
 const H=[8,14,20,11,17,22,9,15,12,18,10,16];
 const wave=document.getElementById('wave');
 const bars=H.map(()=>{const b=document.createElement('i');
@@ -292,10 +321,18 @@ const LABEL={mini:()=>'Idle — press '+RECKEY,rec:()=>'Recording',
  '':()=>''};
 function paint(){
  /* panel outranks hover, hover overlays the engine state, and failure
-    outranks hover so a failed take is never hidden by the cursor */
+    outranks hover so a failed take is never hidden by the cursor.
+    `tab` is the resting handle look — only when idle AND untouched. */
+ const hov=hovering&&base!=='failed'&&!panelOpen;
+ /* Only the PANEL goes horizontal on a side dock — it needs the width for
+    the picker. Hover now stays upright there, which is what keeps the
+    window from shrinking vertically out from under the cursor. */
  document.body.className=base
-  +(panelOpen?' panel':((hovering&&base!=='failed')?' hov':''))
-  +((vertical&&!panelOpen&&!(hovering&&base!=='failed'))?' vert':'');
+  +(panelOpen?' panel':(hov?' hov':''))
+  +((vertical&&!panelOpen)?' vert':'')
+  +((base==='mini'&&!panelOpen&&!hov)?' tab':'')
+  +(moving?' moving':'')
+  +' dock-'+dock;
  const l=LABEL[base.split(' ')[0]];
  const txt=l?l():'Idle';
  document.getElementById('hov-t').textContent=txt;
@@ -332,11 +369,14 @@ window.app={
   paint();},
  reckey(k){RECKEY=(k||'f9').toUpperCase();paint();},
  pos(p){setDock(p);},
- vert(on){vertical=!!on;paint();}
+ vert(on){vertical=!!on;paint();},
+ /* the trip between docks: contents fade out, a quiet slab slides along
+    the screen edge, contents fade back in at the new orientation */
+ moving(on){moving=!!on;paint();}
 };
 const body=document.body;
 body.addEventListener('mouseenter',()=>{
- if(base==='failed'||panelOpen)return;
+ if(base==='failed'||panelOpen||moving)return;
  hovering=true;pyapi('pill_hover_in');paint();});
 body.addEventListener('mouseleave',()=>{
  if(panelOpen||dragging)return;
@@ -351,7 +391,9 @@ document.getElementById('btn-panel-close').addEventListener('click',e=>{
  e.stopPropagation();setPanel(false);});
 document.getElementById('dock').addEventListener('click',e=>{
  const b=e.target.closest('button[data-p]');if(!b)return;
- e.stopPropagation();setDock(b.dataset.p);
+ e.stopPropagation();
+ document.querySelectorAll('#dock button').forEach(
+  x=>x.classList.toggle('on',x===b));
  if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_set_pos)
   window.pywebview.api.pill_set_pos(b.dataset.p);});
 document.getElementById('fail-l').addEventListener('click',()=>{

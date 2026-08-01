@@ -11,6 +11,7 @@ import ctypes
 import hashlib
 import io
 import json
+import concurrent.futures as cf
 import logging
 import os
 import queue
@@ -58,17 +59,21 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.0.0"
+APP_VERSION = "4.1.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
-MINI_W, MINI_H = 36, 12     # idle bubble (the size Mike approved)
-HOVER_W, HOVER_H = 190, 44  # hovered: status text + cancel / open controls
+MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
+HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
 PANEL_W, PANEL_H = 232, 150  # expanded popup: status + dock picker
-# Docked to a side the bar stands up: the recording pill and idle bubble
-# rotate so they hug the edge instead of jutting into the screen. Hover and
-# panel stay horizontal — labels and controls need width to stay readable.
+# Docked to a side everything stands up — including HOVER. A wide hover box
+# on a side dock was shorter than the upright bar it grew from, so the window
+# shrank vertically out from under the cursor: mouseleave fired, the pill
+# shrank back, the cursor was inside again, mouseenter fired. That loop is
+# what made the side buttons unclickable. Every grown size below CONTAINS
+# the size it grows from, on both axes — see _grow_to_contain.
 VPILL_W, VPILL_H = 38, 150
-VMINI_W, VMINI_H = 12, 36
-PILL_PAD = 18               # gap from the docked screen edge
+VMINI_W, VMINI_H = 16, 76
+VHOVER_W, VHOVER_H = 54, 178
+PILL_PAD = 0                # flush: the tab is a handle ON the edge
 DOCKS = ("left", "bottom", "right")
 PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
 UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
@@ -528,9 +533,27 @@ class Engine:
         self._gen = 0
         self._last_partial = None
         self.quitting = False
+        # ONE pooled session for every API call. Bare requests.post() builds
+        # and throws away a Session per call, so each ASR chunk and each Flow
+        # chunk paid a fresh DNS + TCP + TLS handshake — 300-500ms apiece, and
+        # a long take makes half a dozen of them. Keep-alive makes all but the
+        # first free.
+        self._http = requests.Session()
         self.rebuild_chimes()
         # first device-open of a session is the slow one — take that hit now
         threading.Thread(target=self._prewarm_mic, daemon=True).start()
+        # ...and the first TLS handshake likewise: open the socket before the
+        # user ever hits record, so take one is as fast as take two
+        threading.Thread(target=self._prewarm_http, daemon=True).start()
+
+    def _prewarm_http(self):
+        """Open the TLS connection to the API up front and leave it pooled."""
+        try:
+            self._http.get(MODELS_URL,
+                           headers={"Authorization": f"Bearer {self.api_key}"},
+                           timeout=(5, 10))
+        except Exception:
+            logging.debug("http prewarm skipped", exc_info=True)
 
     def cancel(self):
         """Drop whatever is in flight. A live recording is still written to
@@ -814,7 +837,7 @@ class Engine:
         last_err = "Network error — check connection"
         for attempt in range(4):
             try:
-                resp = requests.post(
+                resp = self._http.post(
                     API_URL,
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     data=data,
@@ -852,16 +875,34 @@ class Engine:
         (probed), and the code-switch model handles pure English under 'ar'.
         """
         spans = self._split_points(audio)
-        parts, failed = [], 0
-        for i, (a, b) in enumerate(spans):
-            if on_progress and len(spans) > 1:
-                on_progress(i + 1, len(spans))
+        if len(spans) == 1:
+            buf = io.BytesIO()
+            sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
+            text, err = self._asr(buf.getvalue(), lang)
+            return (None, err) if err else ((text or "").strip(), None)
+
+        # Chunks are independent and the results are simply joined in order,
+        # so running them SEQUENTIALLY was pure dead time: a 3-minute take
+        # paid four full round-trips end to end. Fire them together and keep
+        # the ordering by index.
+        def one(i_span):
+            i, (a, b) = i_span
             buf = io.BytesIO()
             sf.write(buf, audio[a:b], SAMPLE_RATE, format="WAV", subtype="PCM_16")
-            text, err = self._asr(buf.getvalue(), lang)
+            return i, self._asr(buf.getvalue(), lang)
+
+        done = 0
+        results = {}
+        with cf.ThreadPoolExecutor(max_workers=min(4, len(spans))) as pool:
+            for i, (text, err) in pool.map(one, list(enumerate(spans))):
+                results[i] = (text, err)
+                done += 1
+                if on_progress:
+                    on_progress(done, len(spans))
+        parts, failed = [], 0
+        for i in range(len(spans)):
+            text, err = results.get(i, (None, "missing"))
             if err:
-                if len(spans) == 1:
-                    return None, err
                 logging.error("chunk %s/%s failed: %s", i + 1, len(spans), err)
                 failed += 1
                 continue
@@ -913,7 +954,18 @@ class Engine:
             if self.settings.get("paste_mode", "paste") == "type":
                 _send_type(text)
             else:
-                time.sleep(0.15)  # let the clipboard write commit first
+                # Wait for the clipboard to actually hold the text instead of
+                # sleeping a flat 150ms and hoping. Typically returns in a few
+                # ms — and unlike the fixed guess it is still correct when a
+                # clipboard manager makes the write slower than 150ms.
+                deadline = time.monotonic() + 0.15
+                while time.monotonic() < deadline:
+                    try:
+                        if pyperclip.paste() == text:
+                            break
+                    except Exception:
+                        break
+                    time.sleep(0.005)
                 _send_paste()
 
     def _transcribe(self, audio, duration, lang, app_ctx="general",
@@ -923,6 +975,10 @@ class Engine:
         buf = io.BytesIO()
         sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
         wav = buf.getvalue()
+        # stays SYNCHRONOUS on purpose: persisting before any network I/O is
+        # what guarantees a failed upload never costs the user a re-record.
+        # It is a local write of a couple of MB — tens of ms against seconds
+        # of model latency, so there is nothing here worth trading away.
         audio_name = self._keep_audio(wav, t0)
         text, err = self._asr_audio(
             audio, lang,
@@ -1130,7 +1186,7 @@ class Engine:
         while self._clean_model_idx < len(CLEANUP_MODELS):
             model = CLEANUP_MODELS[self._clean_model_idx]
             try:
-                resp = requests.post(
+                resp = self._http.post(
                     CHAT_URL,
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     json={"model": model,
@@ -1239,9 +1295,28 @@ class Engine:
         comes back untrustworthy keeps its ORIGINAL text — losing the user's
         words is strictly worse than leaving them unpolished."""
         chunks = self._text_chunks(text)
+        if len(chunks) == 1:
+            got = self._clean_one(recipe, label, chunks[0], 1, 1)
+            return got if got else (None if got is None else chunks[0])
+        # Segments are cleaned independently and re-joined in order, so the
+        # sequential loop just stacked one full model latency per 1400 chars
+        # — a 3-chunk take waited for three round-trips back to back. Run
+        # them together; the join below still restores the original order.
+        got_by_i = {}
+        with cf.ThreadPoolExecutor(max_workers=min(4, len(chunks))) as pool:
+            futs = {pool.submit(self._clean_one, recipe, label, c,
+                                i + 1, len(chunks)): i
+                    for i, c in enumerate(chunks)}
+            for f in cf.as_completed(futs):
+                i = futs[f]
+                try:
+                    got_by_i[i] = f.result()
+                except Exception:
+                    logging.exception("cleanup segment %s crashed", i + 1)
+                    got_by_i[i] = None
         out, failed, rejected = [], 0, 0
         for i, c in enumerate(chunks):
-            got = self._clean_one(recipe, label, c, i + 1, len(chunks))
+            got = got_by_i.get(i)
             if got:
                 out.append(got)
             else:
@@ -1946,10 +2021,11 @@ class DialFlow:
         try:
             h = self.pill_win.native.Handle
             phwnd = int(h.ToInt64()) if hasattr(h, "ToInt64") else int(h)
-            # ROUNDSMALL for the idle bubble (8px ROUND needs 16px height and
-            # ghosts past a 12px window); the animator switches to ROUND for
-            # the expanded pill and back on collapse
-            corner = ctypes.c_int(3)  # DWMWCP_ROUNDSMALL
+            # DONOTROUND: the tab is pinned flush to a screen edge and its
+            # radius is ASYMMETRIC (outward face only) — DWM can only round
+            # all four corners, which cut a notch out of the docked side.
+            # CSS owns the shape now.
+            corner = ctypes.c_int(1)  # DWMWCP_DONOTROUND
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 33, ctypes.byref(corner), 4)
             # hide the OS border by painting it the pill's own background —
@@ -2023,17 +2099,21 @@ class DialFlow:
         """Side docks stand the bar up."""
         return self.dock() in ("left", "right")
 
-    def _pill_anchor(self, size=None):
+    def _pill_anchor(self, size=None, dock=None):
         """TOP-LEFT position for the docked edge the user chose. Three docks
         only: bottom-middle, left-middle, right-middle.
 
         `size` MUST be the size the pill will BE, not the one it currently
         has — anchoring with the pre-resize size made a side-docked pill grow
-        past its edge and then jump when the follower corrected it."""
+        past its edge and then jump when the follower corrected it.
+
+        PILL_PAD is 0: the tab is pinned FLUSH to the edge, so the docked
+        side never moves when the box grows — every expansion happens away
+        from the edge, which is what keeps the cursor inside the window."""
         try:
             l, t, r, b = self._work_area()
             w, h = size or getattr(self, "_pill_wh", (MINI_W, MINI_H))
-            d = self.dock()
+            d = dock or self.dock()
             if d == "left":
                 return l + PILL_PAD, t + (b - t - h) // 2
             if d == "right":
@@ -2041,6 +2121,27 @@ class DialFlow:
             return l + (r - l - w) // 2, b - PILL_PAD - h
         except Exception:
             return None
+
+    def _pill_size_for(self, target, dock=None):
+        """The (w, h) a given visual state occupies at a given dock."""
+        vert = (dock or self.dock()) in ("left", "right")
+        if target == "panel":
+            return (PANEL_W, PANEL_H)   # always horizontal — the picker needs width
+        if target == "hover":
+            return (VHOVER_W, VHOVER_H) if vert else (HOVER_W, HOVER_H)
+        if target:
+            return (VPILL_W, VPILL_H) if vert else (PILL_W, PILL_H)
+        return (VMINI_W, VMINI_H) if vert else (MINI_W, MINI_H)
+
+    @staticmethod
+    def _grow_to_contain(end, start):
+        """A hover box must never be smaller than the box it grew from on
+        EITHER axis. If it is, the window edge sweeps past the cursor, the
+        webview fires mouseleave, we shrink, the cursor is inside again and
+        mouseenter fires — an infinite resize flicker with unclickable
+        buttons. The sizes above already satisfy this; this is the guard
+        that keeps a future size tweak from silently reintroducing it."""
+        return (max(end[0], start[0]), max(end[1], start[1]))
 
     def _snap_pos(self, x, y, w, h):
         """Nearest of the three docks for a window the user just dropped —
@@ -2110,11 +2211,21 @@ class DialFlow:
             rc = self._pill_rect()
             if rc is not None:
                 pos = self._snap_pos(rc.l, rc.t, rc.r - rc.l, rc.b - rc.t)
+                changed = pos != self.dock()
                 if pos != self.settings.get("pill_pos"):
                     self.settings["pill_pos"] = pos
                     self.settings.save()
                 logging.info("pill docked %s", pos)
                 self._js(self.pill_win, f"app.pos({json.dumps(pos)})")
+                self._drag_origin = None
+                self._pill_dragging = False
+                if changed:
+                    # dropping on a different edge changes ORIENTATION, so the
+                    # box has to be rebuilt at the new size — sliding the old
+                    # shape over left a wide bar lying across a side edge
+                    threading.Thread(target=self._relayout_pill,
+                                     daemon=True).start()
+                    return
         except Exception:
             logging.exception("pill drag end failed")
         finally:
@@ -2125,13 +2236,99 @@ class DialFlow:
     def pill_set_pos(self, pos):
         """Explicit dock choice from the pill's position picker."""
         if pos in DOCKS and pos != self.dock():
+            threading.Thread(target=self._travel_pill, args=(pos,),
+                             daemon=True).start()
+            logging.info("pill travelling to %s (picker)", pos)
+
+    def _travel_path(self, src, dst, size):
+        """Top-left waypoints for a trip from one docked edge to another,
+        hugging the work area the whole way. The pill never cuts across the
+        screen — it retracts to a nub, runs ALONG the edges through the
+        corner between them, and rises at the destination. Left<->right goes
+        the long way round the bottom, which is the only route that stays on
+        an edge."""
+        l, t, r, b = self._work_area()
+        w, h = size
+        cx, cy = l + (r - l - w) // 2, t + (b - t - h) // 2
+        edge = {"bottom": (cx, b - h), "left": (l, cy), "right": (r - w, cy)}
+        bl, br = (l, b - h), (r - w, b - h)
+        corners = {
+            ("bottom", "left"): [bl], ("left", "bottom"): [bl],
+            ("bottom", "right"): [br], ("right", "bottom"): [br],
+            ("left", "right"): [bl, br], ("right", "left"): [br, bl],
+        }
+        return [edge[src]] + corners.get((src, dst), []) + [edge[dst]]
+
+    def _travel_pill(self, pos):
+        """Retract → run along the edge → rise at the new dock. The old
+        behaviour swapped geometry in one frame, so a dock change from the
+        picker just teleported."""
+        src = self.dock()
+        nub = (16, 16)
+        self._pill_animating = True
+        try:
+            self._js(self.pill_win, "app.moving(true)")
+            hwnd = getattr(self, "_pill_hwnd", None)
+            try:
+                dpi = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0 \
+                    if hwnd else 1.0
+            except Exception:
+                dpi = 1.0
+
+            def put(x, y, w, h):
+                if hwnd:
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd, 0, int(x), int(y), int(w * dpi), int(h * dpi),
+                        0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
+                else:
+                    self.pill_win.resize(w, h)
+                    self.pill_win.move(int(x), int(y))
+                self._pill_wh = (w, h)
+
+            # 1. retract to the nub, in place, against the current edge
+            start = getattr(self, "_pill_wh", (MINI_W, MINI_H))
+            a0 = self._pill_anchor(start, src) or (0, 0)
+            for i in range(1, 7):
+                k = i / 6.0
+                w = round(start[0] + (nub[0] - start[0]) * k)
+                h = round(start[1] + (nub[1] - start[1]) * k)
+                a = self._pill_anchor((w, h), src) or a0
+                put(a[0], a[1], w, h)
+                time.sleep(0.016)
+
+            # 2. run the polyline, constant speed, eased as a whole
+            pts = self._travel_path(src, pos, nub)
+            segs = [(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+            lens = [max(1.0, abs(p2[0] - p1[0]) + abs(p2[1] - p1[1]))
+                    for p1, p2 in segs]
+            total = sum(lens)
+            steps = 26
+            for i in range(1, steps + 1):
+                if self.quitting:
+                    return
+                u = i / steps
+                u = u * u * (3 - 2 * u)          # ease-in-out over the trip
+                d = u * total
+                for (p1, p2), ln in zip(segs, lens):
+                    if d <= ln or (p1, p2) == segs[-1]:
+                        f = min(1.0, d / ln)
+                        put(p1[0] + (p2[0] - p1[0]) * f,
+                            p1[1] + (p2[1] - p1[1]) * f, *nub)
+                        break
+                    d -= ln
+                time.sleep(0.34 / steps)
+
+            # 3. commit and rise into the state the engine owns
             self.settings["pill_pos"] = pos
             self.settings.save()
             self._js(self.pill_win, f"app.pos({json.dumps(pos)})")
-            # orientation changes with the edge, so re-lay out at the new
-            # size rather than just sliding the old shape over
-            threading.Thread(target=self._relayout_pill, daemon=True).start()
-            logging.info("pill docked %s (picker)", pos)
+            self._js(self.pill_win, "app.moving(false)")
+        except Exception:
+            logging.exception("pill travel failed")
+            self.settings["pill_pos"] = pos
+        finally:
+            self._pill_animating = False
+        self._relayout_pill()
 
     def _relayout_pill(self):
         """Re-apply the current visual state at the orientation the new dock
@@ -2203,18 +2400,12 @@ class DialFlow:
             time.sleep(0.35)
 
     def _set_pill_corners(self, small):
-        """DWM corner preference per state: ROUNDSMALL (4px) fits the 12px
-        idle bubble; ROUND (8px) suits the 38px expanded pill. Using ROUND on
-        the tiny window makes DWM draw corner arcs past its bounds."""
-        hwnd = getattr(self, "_pill_hwnd", None)
-        if not hwnd:
-            return
-        try:
-            corner = ctypes.c_int(3 if small else 2)
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, 33, ctypes.byref(corner), 4)
-        except Exception:
-            pass
+        """No-op by design. The tab's corners are asymmetric (rounded on the
+        outward face, square where it meets the screen edge) and DWM can only
+        round all four, which notched the docked side. CSS draws the shape;
+        the window itself stays a plain rectangle. Kept as a seam so the call
+        sites read the same as before."""
+        return
 
     def _animate_pill(self, expand):
         """Eased window-size animation between the idle bubble and the full
@@ -2225,15 +2416,14 @@ class DialFlow:
         expand: True -> recording pill, False -> idle bubble, "hover" ->
         the slightly wider size that fits the label and controls."""
         vert = self._is_vert()
-        if expand == "panel":
-            end = (PANEL_W, PANEL_H)      # always horizontal — needs width
-        elif expand == "hover":
-            end = (HOVER_W, HOVER_H)      # always horizontal — needs width
-        elif expand:
-            end = (VPILL_W, VPILL_H) if vert else (PILL_W, PILL_H)
-        else:
-            end = (VMINI_W, VMINI_H) if vert else (MINI_W, MINI_H)
-        want_vert = vert and expand in (True, False, None)
+        end = self._pill_size_for(expand)
+        # the panel is the only state that goes horizontal on a side dock;
+        # hover now stands up with the bar, so no orientation ever flips
+        # under the cursor
+        want_vert = vert and expand != "panel"
+        start_wh = getattr(self, "_pill_wh", (MINI_W, MINI_H))
+        if expand == "hover":
+            end = self._grow_to_contain(end, start_wh)
         # bump the token only once we know we will actually animate: bumping
         # before the early-outs below cancelled a running animation and left
         # _pill_animating stuck True, which froze the follower and every
@@ -2366,8 +2556,11 @@ class DialFlow:
             self._js(self.pill_win, "app.mode('mini')")
             self._js(self.pill_win,
                      f"app.reckey({json.dumps(self.settings['record_key'])})")
-            self._js(self.pill_win, "app.pos(%s)" % json.dumps(
-                self.settings.get("pill_pos", "bottom-center")))
+            # self.dock() — NOT the raw setting. The stored default was the
+            # stale "bottom-center", which is not one of DOCKS, so the JS
+            # stamped an unstyled dock-bottom-center class and the tab lost
+            # its edge radius entirely.
+            self._js(self.pill_win, "app.pos(%s)" % json.dumps(self.dock()))
             self._move_pill()
             self._pill_visible = True
             threading.Timer(0.05, self._restore_focus, args=(prev_fg,)).start()
