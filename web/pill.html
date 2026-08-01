@@ -16,11 +16,16 @@ inset 0 9px 18px -12px rgba(180,152,255,.4)}
 /* Corner radius + hairline border on the THREE outward sides only. The
    docked side stays square and borderless so no seam shows against the
    screen edge. */
-body.dock-bottom{border-radius:12px 12px 0 0;
+/* Radii are matched to what DWM actually clips (ROUNDSMALL ~4px on the tab,
+   ROUND ~8px expanded — see _set_pill_corners). The window is opaque, so a
+   CSS radius larger than the DWM one paints nothing visible: the pixel it
+   uncovers is html's identical background, not the desktop. Keep them equal
+   and the painted arc lands ON the clipped arc. */
+body.dock-bottom{border-radius:8px 8px 0 0;
 border:1px solid rgba(247,244,236,.20);border-bottom:0}
-body.dock-left{border-radius:0 12px 12px 0;
+body.dock-left{border-radius:0 8px 8px 0;
 border:1px solid rgba(247,244,236,.20);border-left:0}
-body.dock-right{border-radius:12px 0 0 12px;
+body.dock-right{border-radius:8px 0 0 8px;
 border:1px solid rgba(247,244,236,.20);border-right:0}
 /* Rim light rides the OUTWARD face. Full-span sized background, radius
    inherited, so the corner curve clips it — never a short absolutely
@@ -39,9 +44,9 @@ body.tab{border:none;box-shadow:
 inset 0 0 0 1px rgba(247,244,236,.13),
 inset 0 -3px 7px -5px rgba(0,0,0,.8),
 inset 0 4px 9px -6px rgba(180,152,255,.4)}
-body.tab.dock-bottom{border-radius:9px 9px 0 0}
-body.tab.dock-left{border-radius:0 9px 9px 0}
-body.tab.dock-right{border-radius:9px 0 0 9px}
+body.tab.dock-bottom{border-radius:4px 4px 0 0}
+body.tab.dock-left{border-radius:0 4px 4px 0}
+body.tab.dock-right{border-radius:4px 0 0 4px}
 /* ---- motion ---- */
 @keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
 @keyframes tabBreathe{0%,100%{opacity:.42}50%{opacity:.95}}
@@ -216,7 +221,8 @@ min-width:auto;min-height:0}
    While the window slides along the screen edge to a new dock, the
    contents would otherwise reflow every frame and the orientation flip
    would strobe. Hold a quiet slab for the trip. */
-body.moving .layer{opacity:0;transition:opacity .1s}
+body.moving .layer,body.moving #recwash,body.moving #flashrim,
+body.moving #failwash{opacity:0;transition:opacity .1s}
 body.moving{box-shadow:inset 0 0 0 1px rgba(247,244,236,.16),
 inset 0 0 20px rgba(108,85,232,.35)}
 /* ---- state visibility ---- */
