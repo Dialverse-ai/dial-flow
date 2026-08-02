@@ -2,6 +2,10 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{background:#171320}
 html,body{overflow:hidden}
+:root{--vio:#6C55E8;--vio2:#9C86F6;--vio3:#C6B4FF;--ink:#F7F4EC;--red:#F26B5E;
+/* live mic level, 0..1, written every frame by the raf loop while recording.
+   Everything that has to be legible from across the room reads this. */
+--lv:0}
 /* ---- the object -------------------------------------------------------
    One slab of dark plum glass PINNED FLUSH to the docked screen edge. It
    is a handle growing out of the edge, not a capsule floating near it —
@@ -15,12 +19,9 @@ box-shadow:inset 0 -8px 15px -9px rgba(0,0,0,.8),
 inset 0 9px 18px -12px rgba(180,152,255,.4)}
 /* Corner radius + hairline border on the THREE outward sides only. The
    docked side stays square and borderless so no seam shows against the
-   screen edge. */
-/* Radii are matched to what DWM actually clips (ROUNDSMALL ~4px on the tab,
-   ROUND ~8px expanded — see _set_pill_corners). The window is opaque, so a
-   CSS radius larger than the DWM one paints nothing visible: the pixel it
-   uncovers is html's identical background, not the desktop. Keep them equal
-   and the painted arc lands ON the clipped arc. */
+   screen edge. Radii match what DWM actually clips (ROUNDSMALL ~4px on the
+   tab, ROUND ~8px expanded — see _set_pill_corners). The window is opaque,
+   so a CSS radius larger than the DWM one paints nothing visible. */
 body.dock-bottom{border-radius:8px 8px 0 0;
 border:1px solid rgba(247,244,236,.20);border-bottom:0}
 body.dock-left{border-radius:0 8px 8px 0;
@@ -48,61 +49,140 @@ body.tab.dock-bottom{border-radius:4px 4px 0 0}
 body.tab.dock-left{border-radius:0 4px 4px 0}
 body.tab.dock-right{border-radius:4px 0 0 4px}
 /* ---- motion ---- */
-@keyframes coreIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
-@keyframes tabBreathe{0%,100%{opacity:.42}50%{opacity:.95}}
-@keyframes emberPulse{0%,100%{opacity:.5;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* The glass has weather in it: three violet fronts sliding past each other
+   inside the lens, one full pass every 26s. background-position ONLY — a
+   keyframed opacity would out-rank the hover transition on the same
+   property and strand the lens mid-brighten when the pointer left. */
+@keyframes auroraDrift{0%,100%{background-position:14% 50%}50%{background-position:86% 50%}}
+@keyframes auroraDriftV{0%,100%{background-position:50% 14%}50%{background-position:50% 86%}}
+/* the pilot light breathing: 7.2s, ±10%. Slow and shallow enough that
+   peripheral vision reads "alive" without ever reporting movement. */
+@keyframes emberBreathe{0%,100%{transform:scale(.9);opacity:.82}50%{transform:scale(1.1);opacity:1}}
 @keyframes pillDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.76);opacity:.58}}
-@keyframes recBreath{0%,100%{opacity:.65}50%{opacity:1}}
-@keyframes pillShim{0%,100%{opacity:.2}50%{opacity:.95}}
 @keyframes pillSpin{to{transform:rotate(360deg)}}
 @keyframes pillPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
 @keyframes pillRise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes pillFlash{0%,46%{opacity:1}100%{opacity:0}}
+@keyframes tickWork{0%,100%{opacity:.5}50%{opacity:1}}
 @keyframes failShake{0%,100%{transform:translateX(0)}18%{transform:translateX(-3px)}
 38%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(2px)}}
 /* ---- layers ---- */
 .layer{position:absolute;inset:0;display:flex;align-items:center;
 justify-content:center;gap:8px}
-/* ---- 1. idle: the edge tab ----------------------------------------------
-   A seam of light lying along the tab's long axis with the ember riding
-   its middle. Reads as a handle with a pilot light, not a floating dot. */
-#core{position:relative;width:34px;height:2px;border-radius:999px;
-background:linear-gradient(90deg,rgba(108,85,232,0),rgba(108,85,232,.7) 20%,
-rgba(203,186,255,.9) 50%,rgba(108,85,232,.7) 80%,rgba(108,85,232,0));
-animation:coreIn .4s ease-out both,tabBreathe 4.6s ease-in-out .4s infinite}
-#core::after{content:'';position:absolute;left:50%;top:50%;width:5px;height:5px;
-margin:-2.5px 0 0 -2.5px;border-radius:999px;background:#EFE9FF;
-box-shadow:0 0 7px 1px rgba(196,176,255,.9);
-animation:emberPulse 4.6s ease-in-out .4s infinite}
-body.vert #core{width:2px;height:34px;
-background:linear-gradient(180deg,rgba(108,85,232,0),rgba(108,85,232,.7) 20%,
-rgba(203,186,255,.9) 50%,rgba(108,85,232,.7) 80%,rgba(108,85,232,0))}
-/* ---- 2. recording: the waveform is the hero ---- */
-#rec-l{gap:7px}
+/* ---- 1. idle: the pilot light -------------------------------------------
+   99% of the day is this, at 36x12. A slot machined into the slab — dark
+   recess along the docked edge, a lit rim along the outward one — with
+   violet weather drifting inside the glass and one ember sitting in the
+   middle of it. Three surfaces of depth in ten pixels of height: the well
+   (#core), the aurora (::before), the ember (::after). Violet only, never
+   red — idle can never be mistaken for a take in progress. */
+#core{position:relative;width:24px;height:5px;border-radius:999px;
+background:linear-gradient(180deg,#0C0916,#191331 68%,#221A3A);
+box-shadow:
+ inset 0 1px 1.5px rgba(0,0,0,.9),
+ inset 0 -1px 0 rgba(226,214,255,.18),
+ 0 0 5px rgba(108,85,232,.3),
+ 0 1px 0 rgba(247,244,236,.05);
+animation:fadeIn .4s ease-out both;
+transition:width .24s ease,height .24s ease,filter .16s}
+/* the weather. Full-span background, radius inherited, so the curve of the
+   slot clips it — never a short strip laid on a rounded edge. */
+#core::before{content:'';position:absolute;inset:0;border-radius:inherit;
+pointer-events:none;opacity:.82;background-repeat:no-repeat;
+background-size:210% 100%;background-position:50% 50%;
+background-image:
+ radial-gradient(56% 150% at 20% 50%,rgba(156,134,246,.85),rgba(156,134,246,0) 72%),
+ radial-gradient(44% 140% at 54% 50%,rgba(198,180,255,.7),rgba(198,180,255,0) 74%),
+ radial-gradient(60% 150% at 86% 50%,rgba(108,85,232,.8),rgba(108,85,232,0) 72%);
+animation:auroraDrift 26s ease-in-out infinite;transition:opacity .2s}
+/* the ember: three shadows of falloff rather than one halo — a white
+   kernel, a violet body, a wide low bloom that fills the slab from inside
+   so the object reads on any wallpaper behind it. */
+#core::after{content:'';position:absolute;left:50%;top:50%;width:3.5px;height:3.5px;
+margin:-1.75px 0 0 -1.75px;border-radius:999px;
+background:radial-gradient(circle at 50% 34%,#FFF,#EFE9FF 40%,#BBA5FF 76%,#8C71F0);
+box-shadow:0 0 2px rgba(238,231,255,.95),0 0 5px rgba(156,134,246,.7),
+ 0 0 9px rgba(108,85,232,.38);
+animation:emberBreathe 7.2s ease-in-out infinite;transition:box-shadow .18s}
+/* pointer is over the WINDOW before Python has finished resizing it, so this
+   pure-CSS response is the fastest possible "yes, I noticed you": the slot
+   stretches toward the bar it is about to become and the light comes up, so
+   idle grows into hover instead of being swapped for it. Width/height/filter/
+   box-shadow/opacity only — transform and the ember's opacity belong to the
+   keyframes, and an interrupted transition on either would strand a wrong
+   resting state if the pointer left mid-stretch. */
+body.tab:not(.vert):hover #core{width:29px}
+body.tab.vert:hover #core{height:29px}
+/* filter, not a replacement box-shadow: it lifts the well and its bloom
+   together and stays correct in both orientations, whose recess and rim sit
+   on opposite axes. */
+body.tab:hover #core{filter:brightness(1.32) saturate(1.1)}
+body.tab:hover #core::before{opacity:1}
+body.tab:hover #core::after{box-shadow:0 0 3px rgba(245,240,255,1),
+ 0 0 7px rgba(178,158,255,.85),0 0 13px 1px rgba(108,85,232,.48)}
+/* vertical is its own composition, not a rotation: the slot runs WITH the
+   screen edge, and the recess/rim pair rotates with it so the light still
+   comes from the outward face. */
+body.vert #core{width:5px;height:24px;
+background:linear-gradient(90deg,#0C0916,#191331 68%,#221A3A);
+box-shadow:
+ inset 1px 0 1.5px rgba(0,0,0,.9),
+ inset -1px 0 0 rgba(226,214,255,.18),
+ 0 0 5px rgba(108,85,232,.3)}
+body.vert #core::before{background-size:100% 210%;
+background-image:
+ radial-gradient(150% 56% at 50% 20%,rgba(156,134,246,.85),rgba(156,134,246,0) 72%),
+ radial-gradient(140% 44% at 50% 54%,rgba(198,180,255,.7),rgba(198,180,255,0) 74%),
+ radial-gradient(150% 60% at 50% 86%,rgba(108,85,232,.8),rgba(108,85,232,0) 72%);
+animation:auroraDriftV 26s ease-in-out infinite}
+/* ---- 2. recording ------------------------------------------------------
+   Silence and speech must not differ by a few pixels of bar height — they
+   are two different objects. Quiet: grey teeth on a dead slab. Heard: red
+   teeth, hot rim, the whole 150px slab lit in proportion to --lv. */
+#rec-l{gap:7px;padding:0 9px}
 #recwash{position:absolute;inset:0;border-radius:inherit;
-background:radial-gradient(125% 160% at 50% 125%,rgba(242,107,94,.22),rgba(242,107,94,0) 72%);
-box-shadow:inset 0 0 0 1px rgba(242,107,94,.22);
-animation:recBreath 2.6s ease-in-out infinite}
-body.vert #recwash{background:radial-gradient(160% 125% at 50% 100%,rgba(242,107,94,.22),rgba(242,107,94,0) 72%)}
-.dotwrap{display:flex;animation:pillPop .14s ease-out .06s both}
+background:radial-gradient(125% 160% at 50% 125%,rgba(242,107,94,.34),rgba(242,107,94,0) 72%);
+opacity:calc(.26 + var(--lv) * .74);
+box-shadow:inset 0 0 0 1px rgba(242,107,94,.18);
+transition:filter .28s,box-shadow .28s}
+body.rec.hearing #recwash{box-shadow:
+inset 0 0 0 1px rgba(242,107,94,calc(.28 + var(--lv) * .5)),
+inset 0 0 24px rgba(242,107,94,calc(var(--lv) * .5))}
+/* not hearing him: the colour drains out. Visible from the other side of
+   the room without reading a single pixel of detail. */
+body.rec:not(.hearing) #recwash{filter:saturate(.1) brightness(.85)}
+body.vert #recwash{background:radial-gradient(160% 125% at 50% 100%,rgba(242,107,94,.34),rgba(242,107,94,0) 72%)}
+/* the dot swells with his voice — the level made physical, not a meter */
+.dotwrap{display:flex;animation:fadeIn .16s ease-out both;
+transform:scale(calc(1 + var(--lv) * .34))}
 .dotwrap i{width:9px;height:9px;border-radius:999px;display:block;
 background:radial-gradient(circle at 34% 30%,#FFDAD2,#F26B5E 60%,#C04337);
 box-shadow:0 0 0 1px rgba(242,107,94,.3),0 0 9px 1px rgba(242,107,94,.55);
-animation:pillDot 1.5s ease-in-out .2s infinite}
+animation:pillDot 1.5s ease-in-out .2s infinite;transition:background .22s,box-shadow .22s}
+body.rec:not(.hearing) .dotwrap i{
+background:radial-gradient(circle at 34% 30%,#B7B0D4,#6E6690 60%,#4A4466);
+box-shadow:0 0 0 1px rgba(180,170,220,.22)}
 #t{font-size:12.5px;font-weight:600;color:#F7F4EC;font-variant-numeric:tabular-nums;
 letter-spacing:.02em;text-shadow:0 0 10px rgba(199,182,255,.28);
 animation:pillRise .14s ease-out .12s both}
 /* the silence baseline spans the whole wave box — full-width background
    strip, never a stubby positioned line */
-#wave{display:flex;align-items:center;gap:2.5px;
-background:linear-gradient(90deg,rgba(242,107,94,0),rgba(242,107,94,.32) 16%,
-rgba(242,107,94,.32) 84%,rgba(242,107,94,0)) left center/100% 1px no-repeat;
-animation:pillRise .16s ease-out .16s both}
+#wave{display:flex;align-items:center;gap:3px;
+background:linear-gradient(90deg,rgba(242,107,94,0),rgba(242,107,94,.3) 16%,
+rgba(242,107,94,.3) 84%,rgba(242,107,94,0)) left center/100% 1px no-repeat;
+animation:pillRise .16s ease-out .16s both;transition:filter .28s}
+body.rec:not(.hearing) #wave{filter:saturate(.08)}
 #wave i{width:2px;height:2px;border-radius:999px;display:block;flex:none;
 background:linear-gradient(180deg,#FFCFC2,#FA7E6F 46%,#DE5648);
-box-shadow:0 0 7px rgba(250,126,111,.55)}
-/* ---- 3. processing: a tapered comet ring + words assembling ---- */
-#proc-l{gap:9px}
+box-shadow:0 0 7px rgba(250,126,111,.55);transition:background .22s,box-shadow .22s}
+body.rec:not(.hearing) #wave i{background:#655D87;box-shadow:none}
+/* ---- 3. processing: a progress rail, not a spinner ----------------------
+   Python only ever says "processing", but the take's own length is a real
+   estimate of the work ahead, and long takes are chunked. The rail fills on
+   an asymptote paced by that estimate: monotonic, always moving, capped at
+   92% so it can never claim to be finished before done() actually lands. */
+#proc-l{gap:9px;padding:0 9px}
 .pspin{display:flex;filter:drop-shadow(0 0 4px rgba(156,134,246,.55));
 animation:pillPop .14s ease-out .06s both}
 .pspin i{width:14px;height:14px;border-radius:999px;display:block;
@@ -111,12 +191,17 @@ rgba(156,134,246,.85) 258deg,#DACEFF 348deg,rgba(108,85,232,0) 360deg);
 -webkit-mask:radial-gradient(closest-side,transparent 57%,#000 61%);
 mask:radial-gradient(closest-side,transparent 57%,#000 61%);
 animation:pillSpin .9s linear infinite}
-/* dashes of uneven length read as words landing, not as a loading dot row */
-#pdots{display:flex;align-items:center;gap:3px;animation:pillRise .16s ease-out .1s both}
-#pdots i{width:5px;height:3px;border-radius:999px;background:#7F76AC;display:block;
-flex:none;animation:pillShim 1.5s ease-in-out infinite}
-#pdots i:nth-child(3n+2){width:8px}
-#pdots i:nth-child(4n){width:3px}
+.pcol{display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+animation:pillRise .16s ease-out .1s both}
+#pdots{display:flex;align-items:center;gap:2.5px}
+#pdots i{width:5px;height:3px;border-radius:999px;display:block;flex:none;
+background:rgba(140,130,182,.34);transition:background .18s,box-shadow .18s}
+#pdots i.on{background:linear-gradient(90deg,var(--vio),var(--vio3));
+box-shadow:0 0 7px rgba(156,134,246,.7)}
+/* the leading tick is where the work is happening right now */
+#pdots i.now{animation:tickWork 1s ease-in-out infinite}
+.ptime{font-size:9.5px;font-weight:600;letter-spacing:.04em;color:#9A90C6;
+font-variant-numeric:tabular-nums}
 /* ---- 4. success bloom ---- */
 #flashrim{position:absolute;inset:0;border-radius:inherit;
 box-shadow:inset 0 0 0 1px rgba(214,201,255,.75),inset 0 0 18px rgba(156,134,246,.42);
@@ -130,29 +215,18 @@ box-shadow:inset 0 0 0 1px rgba(242,107,94,.55)}
 #fail-l b{font-size:11.5px;font-weight:600;color:#FFB5AA;white-space:nowrap;
 min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* ---- 6. hover controls -------------------------------------------------
-   Bottom dock lays them out in a row. A SIDE dock keeps the upright
-   footprint and stacks them in a column instead of flipping to a wide
-   box — flipping made the window shrink vertically out from under the
-   cursor, which fired mouseleave, which shrank it back, which re-entered:
-   the flicker that made these buttons unclickable. The hover box now
-   always CONTAINS the box it grew from, on both axes. */
-#hov-l{gap:5px;padding:0 8px;cursor:grab}
+   Always horizontal at 190x44, on every dock. The row never hides the
+   clock: while recording, the label carries the live elapsed time, so
+   reaching for Cancel no longer costs him the one number he was watching. */
+#hov-l{gap:4px;padding:0 9px;cursor:grab}
 #hov-l:active{cursor:grabbing}
-#grip{width:8px;height:15px;flex:none;margin-right:2px;opacity:.55;
+#grip{width:8px;height:16px;flex:none;margin-right:2px;opacity:.55;
 background:radial-gradient(circle at 1.5px 1.5px,rgba(207,198,245,.9) 1px,transparent 1.35px);
 background-size:4px 4px;transition:opacity .14s}
 #hov-l:hover #grip{opacity:.85}
 #hov-t{flex:1;min-width:0;font-size:11px;font-weight:600;color:#F1EADC;
+font-variant-numeric:tabular-nums;letter-spacing:.01em;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-/* upright hover: a column — grip on the outward end, label rotated to
-   run with the edge, buttons stacked and full-width so they are fat
-   targets even in a 54px-wide window */
-body.vert.hov #hov-l{flex-direction:column;gap:7px;padding:9px 0}
-body.vert.hov #grip{width:15px;height:8px;margin:0 0 1px 0;
-background-size:4px 4px}
-body.vert.hov #hov-t{flex:1;min-height:0;max-height:64px;text-align:center;
-writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px}
-body.vert.hov .pbtn{width:30px;height:30px;border-radius:9px}
 .pbtn{position:relative;width:22px;height:22px;flex:none;border:0;border-radius:7px;
 cursor:pointer;padding:0;color:#EFE9DC;display:flex;align-items:center;
 justify-content:center;font:inherit;
@@ -167,22 +241,46 @@ rgba(255,255,255,0) 88%) top left/100% 1px no-repeat}
 .pbtn:hover{background:linear-gradient(180deg,rgba(156,134,246,.55),rgba(108,85,232,.34));color:#FFF}
 .pbtn:active{transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.55)}
 .pbtn:focus-visible{outline:2px solid #9C86F6;outline-offset:1px}
-.pbtn.warn:hover{background:linear-gradient(180deg,rgba(242,107,94,.6),rgba(192,67,55,.4));color:#FFE3DE}
-/* ---- 7. expanded panel: status + dock picker ---- */
-#panel-l{flex-direction:column;align-items:stretch;gap:8px;padding:11px;
+/* Cancel is the most-used control on a bad take, so it is red at REST, not
+   only on hover — a fixed, pre-identified target at the outward end. */
+.pbtn.warn{color:#FFC6BD;
+background:linear-gradient(180deg,rgba(242,107,94,.34),rgba(192,67,55,.16));
+box-shadow:0 1px 2px rgba(0,0,0,.45),inset 0 0 0 1px rgba(242,107,94,.34)}
+.pbtn.warn:hover{background:linear-gradient(180deg,rgba(242,107,94,.72),rgba(192,67,55,.48));color:#FFF1EE}
+/* ---- 7. expanded panel: live take state + dock picker ------------------
+   Everything here is something the page already knows: how many takes this
+   session, how long the last one ran (live while he is still talking), and
+   how long the engine took to turn it into text. No invented controls. */
+/* 232x150 minus 1px of border leaves 148px of height. The stack below sums
+   to 144 — header 28, stats 32, dock 36, hint 13, three 6px gaps, 16 of
+   padding. Anything taller and overflow:hidden eats the hint line. */
+#panel-l{flex-direction:column;align-items:stretch;gap:6px;padding:8px 10px;
 justify-content:flex-start}
 #panel-l .ph{display:flex;align-items:center;gap:8px;padding-bottom:6px;cursor:grab;
 background:linear-gradient(90deg,rgba(247,244,236,.18),rgba(247,244,236,.02)) bottom left/100% 1px no-repeat}
 #panel-l .ph b{flex:1;min-width:0;font-size:12px;font-weight:600;color:#F4EEE1;
+font-variant-numeric:tabular-nums;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pstats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.pstat{display:flex;flex-direction:column;align-items:center;justify-content:center;
+gap:1px;height:32px;border-radius:7px;
+background:linear-gradient(180deg,rgba(247,244,236,.07),rgba(247,244,236,.02));
+box-shadow:inset 0 0 0 1px rgba(247,244,236,.06)}
+.pstat b{font-size:12.5px;font-weight:600;color:#EFE7D8;letter-spacing:-.01em;
+font-variant-numeric:tabular-nums;line-height:1}
+.pstat span{font-size:8px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+color:#8C82B6;line-height:1}
+/* the live cell while he is still talking */
+body.rec #ps-len{color:#FFC2B7}
 #panel-l .plab{font-size:9px;font-weight:700;letter-spacing:.11em;
 text-transform:uppercase;color:#8C82B6}
 #panel-l #panel-hint{text-transform:none;letter-spacing:.01em;font-size:10px;
-font-weight:500;color:#968CC2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+font-weight:500;color:#968CC2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+text-align:center}
 #dock{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 /* each tile is a little screen; the violet bar sits ON the edge it docks
    to, flush, mirroring how the real tab sits on the real screen edge */
-#dock button{position:relative;height:44px;padding:0;cursor:pointer;overflow:hidden;
+#dock button{position:relative;height:36px;padding:0;cursor:pointer;overflow:hidden;
 border:1px solid rgba(247,244,236,.10);border-radius:8px;
 background:linear-gradient(180deg,rgba(247,244,236,.07),rgba(247,244,236,.02));
 box-shadow:inset 0 0 12px rgba(0,0,0,.4);
@@ -198,22 +296,31 @@ border-color:#9C86F6;box-shadow:inset 0 0 12px rgba(108,85,232,.4)}
 #dock button i{display:block;position:absolute;background:linear-gradient(90deg,#6C55E8,#C6B4FF);
 transition:all .14s}
 #dock button.on i{box-shadow:0 0 8px rgba(156,134,246,.95)}
-#dock button[data-p=bottom] i{width:22px;height:5px;left:50%;transform:translateX(-50%);
+#dock button[data-p=bottom] i{width:20px;height:5px;left:50%;transform:translateX(-50%);
 bottom:0;border-radius:3px 3px 0 0}
-#dock button[data-p=left] i,#dock button[data-p=right] i{width:5px;height:22px;top:50%;
+#dock button[data-p=left] i,#dock button[data-p=right] i{width:5px;height:19px;top:50%;
 transform:translateY(-50%);background:linear-gradient(180deg,#6C55E8,#C6B4FF)}
 #dock button[data-p=left] i{left:0;border-radius:0 3px 3px 0}
 #dock button[data-p=right] i{right:0;border-radius:3px 0 0 3px}
-/* ---- vertical (side-docked) — a deliberate upright layout ---- */
-body.vert #rec-l{flex-direction:column;gap:7px}
-body.vert #wave{flex-direction:column-reverse;gap:2.5px;
-background:linear-gradient(180deg,rgba(242,107,94,0),rgba(242,107,94,.32) 16%,
-rgba(242,107,94,.32) 84%,rgba(242,107,94,0)) center top/1px 100% no-repeat}
+/* ---- vertical (side-docked) — a deliberate upright layout ---------------
+   Not a rotation. The waveform grows OUT of a centre spine in both
+   directions, so a 38px-wide column still shows level as width; the timer
+   runs with the edge; the progress rail stacks so it fills downward like a
+   thermometer instead of pretending to be a sideways row. */
+body.vert #rec-l{flex-direction:column;gap:6px;padding:9px 0}
+body.vert #wave{flex-direction:column-reverse;gap:3px;
+background:linear-gradient(180deg,rgba(242,107,94,0),rgba(242,107,94,.3) 16%,
+rgba(242,107,94,.3) 84%,rgba(242,107,94,0)) center top/1px 100% no-repeat}
+/* the grey-when-unheard rule carries an extra class, so it still out-ranks
+   this one and silence stays silent-looking upright too */
 body.vert #wave i{width:2px;height:2px;
 background:linear-gradient(90deg,#FFCFC2,#FA7E6F 46%,#DE5648)}
 body.vert #t{font-size:10.5px;writing-mode:vertical-rl;transform:rotate(180deg)}
-body.vert #proc-l{flex-direction:column;gap:9px}
-body.vert #pdots{flex-direction:column;gap:3px}
+body.vert #proc-l{flex-direction:column;gap:7px;padding:7px 0}
+body.vert .pcol{flex-direction:column;align-items:center;gap:6px}
+body.vert #pdots{flex-direction:column;gap:2px}
+body.vert #pdots i{width:3px;height:4px}
+body.vert .ptime{writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.06em}
 body.vert #fail-l{flex-direction:column;padding:11px 0}
 body.vert #fail-l b{writing-mode:vertical-rl;transform:rotate(180deg);
 min-width:auto;min-height:0}
@@ -225,7 +332,11 @@ body.moving .layer,body.moving #recwash,body.moving #flashrim,
 body.moving #failwash{opacity:0;transition:opacity .1s}
 body.moving{box-shadow:inset 0 0 0 1px rgba(247,244,236,.16),
 inset 0 0 20px rgba(108,85,232,.35)}
-/* ---- state visibility ---- */
+/* ---- state visibility ---------------------------------------------------
+   Every rule below is exactly one class + one id, so they resolve purely by
+   source order. Do not reorder, and do not add a second class to any of
+   them — a `body.mini:not(.hov)` once clipped the 232x150 panel to an
+   ellipse by out-specifying the panel's own radius. */
 .layer,#recwash,#flashrim,#failwash{display:none}
 body.mini #core-l{display:flex}
 body.rec #rec-l{display:flex}
@@ -234,9 +345,7 @@ body.processing #proc-l{display:flex}
 body.flash #proc-l{display:flex}
 body.flash #flashrim{display:block}
 body.flash .pspin{display:none}
-body.flash #pdots{animation:none}
-body.flash #pdots i{background:#CFC2FF;box-shadow:0 0 8px rgba(180,158,255,.7);
-animation:pillFlash .34s ease-out both}
+body.flash #pdots i{animation:none}
 body.failed #fail-l{display:flex}
 body.failed #failwash{display:block}
 body.panel #core-l,body.panel #rec-l,body.panel #proc-l,
@@ -249,12 +358,15 @@ body.panel #panel-l{display:flex}
 body.hov #core-l,body.hov #rec-l,body.hov #proc-l{display:none}
 body.hov #hov-l{display:flex}
 @media (prefers-reduced-motion:reduce){
- #core,#core::after,.dotwrap,.dotwrap i,#t,#wave,#pdots,#pdots i,.pspin,
- #recwash,#flashrim,#fail-l{animation:none!important}
- #core{opacity:.85}#core::after{opacity:1}#pdots i{opacity:.6}
+ #core,#core::before,#core::after,.dotwrap,.dotwrap i,#t,#wave,.pcol,.pspin,
+ #pdots i,#recwash,#flashrim,#fail-l{animation:none!important}
+ /* the static look must still be the finished object: lit slot, mid-drift
+    aurora frozen at its centre position, ember at full size. */
+ #core{opacity:1}#core::after{opacity:1;transform:none}#core::before{opacity:.82}
  /* the ring is the only signal that work is still running — slowed, not killed */
  .pspin i{animation:pillSpin 1.9s linear infinite!important}
- .pbtn,#grip,#dock button,#dock button i{transition:none}
+ .dotwrap{transform:none}
+ .pbtn,#grip,#dock button,#dock button i,#pdots i,#wave i,#recwash{transition:none}
 }
 </style></head><body class="mini tab dock-bottom">
 <div id="recwash"></div><div id="flashrim"></div><div id="failwash"></div>
@@ -266,7 +378,10 @@ body.hov #hov-l{display:flex}
 </div>
 <div class="layer" id="proc-l" data-od-id="processing-layer">
  <span class="pspin"><i></i></span>
- <div id="pdots"></div>
+ <div class="pcol">
+  <div id="pdots" data-od-id="progress-rail"></div>
+  <span class="ptime" id="ptime">0.0s</span>
+ </div>
 </div>
 <div class="layer" id="fail-l" data-od-id="failed-layer">
  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
@@ -282,13 +397,17 @@ body.hov #hov-l{display:flex}
     stroke-width="2.6" stroke-linecap="round">
     <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
  </div>
- <div class="plab">Position</div>
+ <div class="pstats" data-od-id="panel-stats">
+  <div class="pstat"><b id="ps-takes">0</b><span>Takes</span></div>
+  <div class="pstat"><b id="ps-len">—</b><span id="ps-len-l">Last</span></div>
+  <div class="pstat"><b id="ps-turn">—</b><span>To text</span></div>
+ </div>
  <div id="dock" data-od-id="dock-picker">
   <button data-p="left" title="Left edge"><i></i></button>
   <button data-p="bottom" title="Bottom"><i></i></button>
   <button data-p="right" title="Right edge"><i></i></button>
  </div>
- <div class="plab" id="panel-hint">Sides stand it upright</div>
+ <div class="plab" id="panel-hint">Double-click the bar to move it</div>
 </div>
 <div class="layer" id="hov-l" data-od-id="hover-controls">
  <div id="grip" title="Drag to move"></div>
@@ -302,7 +421,7 @@ body.hov #hov-l{display:flex}
    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
    <path d="M14 4h6v6"/><path d="M20 4l-9 9"/>
    <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
- <button class="pbtn warn" id="btn-cancel" title="Cancel" data-od-id="btn-cancel">
+ <button class="pbtn warn" id="btn-cancel" title="Cancel (right-click anywhere, or Esc)" data-od-id="btn-cancel">
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
    stroke-width="2.6" stroke-linecap="round">
    <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
@@ -310,48 +429,90 @@ body.hov #hov-l{display:flex}
 <script>
 let startedAt=0,lvl=0,disp=0,base='mini',hovering=false,busy=false;
 let panelOpen=false,dragging=false,dock='bottom',vertical=false,moving=false;
-const H=[8,14,20,11,17,22,9,15,12,18,10,16];
+let hearing=false;
+/* processing progress state: when the take started being transcribed, and how
+   long the take itself ran — the only honest basis we have for an estimate. */
+let procAt=0,takeLen=0,lit=-1;
+/* session tallies, all locally observed — never claimed from the backend */
+let takes=0,lastLen=0,lastTurn=0;
+const H=[9,15,21,12,18,23,10,16,13,19,11,17,14,20];
+const TICKS=12;
+const root=document.documentElement;
 const wave=document.getElementById('wave');
 const bars=H.map(()=>{const b=document.createElement('i');
 wave.appendChild(b);return b;});
 const pd=document.getElementById('pdots');
-for(let i=0;i<12;i++){const d=document.createElement('i');
-d.style.animationDelay=(i*0.11)+'s';pd.appendChild(d);}
+const ticks=[];
+for(let i=0;i<TICKS;i++){const d=document.createElement('i');
+pd.appendChild(d);ticks.push(d);}
+const elT=document.getElementById('t');
+const elPtime=document.getElementById('ptime');
+const elHov=document.getElementById('hov-t');
+const elPanelT=document.getElementById('panel-t');
 function pyapi(fn){
  if(window.pywebview&&window.pywebview.api&&window.pywebview.api[fn])
   window.pywebview.api[fn]();
 }
 let RECKEY='F9';
-const LABEL={mini:()=>'Idle — press '+RECKEY,rec:()=>'Recording',
+const LABEL={mini:()=>'Ready · '+RECKEY,rec:()=>'Recording',
  processing:()=>'Transcribing…',failed:()=>'Transcription failed',
  '':()=>''};
+function fmt(s){s=Math.max(0,Math.floor(s));
+ return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function secs(ms){const s=ms/1000;return s<10?s.toFixed(1)+'s':Math.round(s)+'s';}
+function elapsed(){return startedAt?Math.max(0,Date.now()/1000-startedAt):0;}
+/* both status readouts carry the same live string; cached so the raf loop is
+   not writing textContent on two nodes sixty times a second for nothing */
+let lastTxt='';
+function say(txt){
+ if(txt===lastTxt)return;
+ lastTxt=txt;elHov.textContent=txt;elPanelT.textContent=txt;
+}
+function setLit(n){
+ if(n===lit)return;
+ lit=n;
+ for(let i=0;i<TICKS;i++){
+  ticks[i].classList.toggle('on',i<n);
+  ticks[i].classList.toggle('now',i===n-1&&n<TICKS);
+ }
+}
 function paint(){
  /* panel outranks hover, hover overlays the engine state, and failure
     outranks hover so a failed take is never hidden by the cursor.
     `tab` is the resting handle look — only when idle AND untouched. */
  const hov=hovering&&base!=='failed'&&!panelOpen;
- /* Only the PANEL goes horizontal on a side dock — it needs the width for
-    the picker. Hover now stays upright there, which is what keeps the
-    window from shrinking vertically out from under the cursor. */
+ /* Hover is 190x44 on EVERY dock, so `vert` must be off while hovering —
+    a column layout inside a wide short window is the flicker trap. */
+ if(base!=='rec'){hearing=false;disp=0;root.style.setProperty('--lv',0);}
  document.body.className=base
   +(panelOpen?' panel':(hov?' hov':''))
-  +((vertical&&!panelOpen)?' vert':'')
+  +((vertical&&!panelOpen&&!hov)?' vert':'')
   +((base==='mini'&&!panelOpen&&!hov)?' tab':'')
+  +(hearing?' hearing':'')
   +(moving?' moving':'')
   +' dock-'+dock;
  const l=LABEL[base.split(' ')[0]];
- const txt=l?l():'Idle';
- document.getElementById('hov-t').textContent=txt;
- document.getElementById('panel-t').textContent=txt;
+ lastTxt='';say(l?l():'Idle');
  document.getElementById('btn-cancel').style.display=busy?'flex':'none';
+ stats();
+}
+function stats(){
+ document.getElementById('ps-takes').textContent=takes;
+ const live=base==='rec';
+ document.getElementById('ps-len-l').textContent=live?'Elapsed':'Last';
+ document.getElementById('ps-len').textContent=
+  live?fmt(elapsed()):(lastLen?fmt(lastLen):'—');
+ document.getElementById('ps-turn').textContent=lastTurn?secs(lastTurn):'—';
+ /* the hint is where the two shortcuts get taught — the panel is the only
+    surface with room for words, and this is the only place he will read them */
+ document.getElementById('panel-hint').textContent=
+  busy?'Right-click or Esc to cancel':RECKEY+' to dictate · double-click to move';
 }
 function setDock(p){
  dock=p;
  vertical=(p==='left'||p==='right');
  document.querySelectorAll('#dock button').forEach(
   b=>b.classList.toggle('on',b.dataset.p===p));
- document.getElementById('panel-hint').textContent=
-  vertical?'Standing upright on the '+p+' edge':'Sides stand it upright';
  paint();
 }
 function setPanel(on){
@@ -362,14 +523,19 @@ function setPanel(on){
   window.pywebview.api.pill_panel(on);
 }
 window.app={
- start(ts){startedAt=ts;lvl=0;disp=0;base='rec';busy=true;paint();},
+ start(ts){startedAt=ts;lvl=0;disp=0;hearing=false;base='rec';busy=true;paint();},
  level(v){lvl=v;},
  /* '' is a REAL state — the blank frame held while the window shrinks.
     `m||'mini'` used to coerce it to mini, so the idle core painted at full
     expanded width for the whole collapse. */
- mode(m){base=(m===undefined||m===null)?'mini':m;
-  busy=(m==='processing');paint();},
- done(){base='processing flash';busy=false;paint();},
+ mode(m){const next=(m===undefined||m===null)?'mini':m;
+  if(next==='processing'&&base!=='processing'){
+   takeLen=elapsed()||6;procAt=Date.now();setLit(0);
+  }
+  base=next;busy=(m==='processing');paint();},
+ done(){
+  if(procAt){lastTurn=Date.now()-procAt;lastLen=takeLen;takes++;}
+  setLit(TICKS);base='processing flash';busy=false;paint();},
  failed(msg){base='failed';busy=false;
   if(msg)document.getElementById('fail-t').textContent=msg;
   paint();},
@@ -395,15 +561,35 @@ document.getElementById('btn-panel').addEventListener('click',e=>{
  e.stopPropagation();setPanel(true);});
 document.getElementById('btn-panel-close').addEventListener('click',e=>{
  e.stopPropagation();setPanel(false);});
+function setPos(p){
+ if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_set_pos)
+  window.pywebview.api.pill_set_pos(p);
+}
 document.getElementById('dock').addEventListener('click',e=>{
  const b=e.target.closest('button[data-p]');if(!b)return;
  e.stopPropagation();
  document.querySelectorAll('#dock button').forEach(
   x=>x.classList.toggle('on',x===b));
- if(window.pywebview&&window.pywebview.api&&window.pywebview.api.pill_set_pos)
-  window.pywebview.api.pill_set_pos(b.dataset.p);});
+ setPos(b.dataset.p);});
 document.getElementById('fail-l').addEventListener('click',()=>{
  base='mini';paint();pyapi('pill_open');});
+/* ---- the two things he does most, in one gesture each -------------------
+   Moving it out of the way: double-click cycles the dock, so the common
+   "get off this corner" costs one gesture instead of hover, panel, tile.
+   Killing a bad take: right-click anywhere on the slab, or Esc — no need to
+   hover first and find a 23px button while still mid-sentence. Both route
+   through bridge calls that already exist. */
+body.addEventListener('dblclick',e=>{
+ if(base==='failed'||e.target.closest('.pbtn')||e.target.closest('#dock'))return;
+ setPos({bottom:'right',right:'left',left:'bottom'}[dock]||'bottom');});
+body.addEventListener('contextmenu',e=>{
+ e.preventDefault();
+ if(busy){pyapi('pill_cancel');return;}
+ setPanel(!panelOpen);});
+window.addEventListener('keydown',e=>{
+ if(e.key!=='Escape')return;
+ if(panelOpen){setPanel(false);return;}
+ if(busy)pyapi('pill_cancel');});
 
 /* ---- drag ----
    WM_NCLBUTTONDOWN could not work from the JS bridge thread (ReleaseCapture
@@ -438,18 +624,20 @@ function startDrag(ev){
 document.getElementById('hov-l').addEventListener('pointerdown',startDrag);
 document.querySelector('#panel-l .ph').addEventListener('pointerdown',startDrag);
 function raf(){
- if(document.body.classList.contains('rec')){
-  if(startedAt){
-   const s=Math.max(0,Math.floor(Date.now()/1000-startedAt));
-   document.getElementById('t').textContent=
-    Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
-  }
+ const cl=document.body.classList;
+ if(cl.contains('rec')){
+  const s=elapsed();
+  if(startedAt)elT.textContent=fmt(s);
   /* Wispr-style wave: bars are driven by the real mic level pushed from
      Python — silence collapses them to a flat 2px line, speech lifts them
      with a slight per-bar wobble (wobble scales with the level too, so a
      quiet room never shimmies) */
   const target=Math.min(1,lvl*9);
   disp+=(target-disp)*(target>disp?0.4:0.15);
+  root.style.setProperty('--lv',disp.toFixed(3));
+  /* hysteresis, so a voice sitting on the threshold does not strobe the
+     whole slab between its heard and unheard looks */
+  if(hearing?disp<0.09:disp>0.16){hearing=!hearing;cl.toggle('hearing',hearing);}
   const t=performance.now()/1000;
   bars.forEach((b,i)=>{
    const wig=0.7+0.3*Math.sin(t*9+i*1.7);
@@ -458,6 +646,23 @@ function raf(){
    if(vertical){b.style.width=v;b.style.height='2px';}
    else{b.style.height=v;b.style.width='2px';}
   });
+  /* short by necessity: the 190px hover row leaves the label ~80px once the
+     grip and three buttons are laid out, and the number must never ellipsize */
+  if(hovering||panelOpen)say('Rec '+fmt(s));
+  if(panelOpen)stats();
+ }else if(cl.contains('processing')){
+  const e=Date.now()-procAt;
+  if(cl.contains('flash')){elPtime.textContent=secs(e);}
+  else{
+   /* ponytail: heuristic ETA — transcription runs roughly proportional to
+      audio length. Asymptotic and capped at 92%, so it always moves and
+      never lies about being finished. Swap for real chunk counts if the
+      bridge ever exposes them. */
+   const p=0.92*(1-Math.exp(-(e/1000)/Math.max(1.1,takeLen*0.35)));
+   setLit(Math.round(p*TICKS));
+   elPtime.textContent=secs(e);
+   if(hovering||panelOpen)say('Writing '+elPtime.textContent);
+  }
  }
  requestAnimationFrame(raf);}
 requestAnimationFrame(raf);

@@ -15,7 +15,9 @@
   --bg:#F5EFE2; --sidebar:#EDE6D4; --surface:#FFFDF7; --surface-hi:#FFFFFC;
   --field:#F9F4EA; --tint:#F1EBDB;
   --border:#E5DAC4; --border-strong:#D6CAB0; --divider:#EFE8D7;
-  --text:#231E17; --text2:#665D4C; --muted:#7E7460; --faint:#8D8370;
+  /* --muted is the smallest text on the page (9–11px labels); it has to clear
+     4.5:1 on the parchment --bg, not just on the lighter card surfaces */
+  --text:#231E17; --text2:#665D4C; --muted:#756B57; --faint:#8D8370;
   --accent:#6C55E8; --accent2:#8B5CF6; --accent-hover:#5A45D0; --accent-text:#5240C9;
   --accent-tint:#EEEAFB; --accent-tint-b:#DDD4F7; --accent-soft:#E3DBF8;
   --accent-glow:rgba(108,85,232,.32); --accent-wash:rgba(108,85,232,.07);
@@ -45,7 +47,7 @@
        0 46px 76px -34px rgba(var(--sh-a),.46),inset 0 1px 0 var(--rim-top);
   --e4:0 4px 10px rgba(var(--sh-a),.18),0 30px 58px -20px rgba(var(--sh-a),.48),
        inset 0 1px 0 var(--rim-top);
-  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237E7460' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23756B57' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 :root[data-theme=dark]{
   color-scheme:dark;
@@ -145,7 +147,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @keyframes cardIn{from{opacity:0;transform:perspective(1100px) translate3d(0,26px,-60px) rotateX(-9deg)}}
 @keyframes riseIn{from{opacity:0;transform:translateY(14px)}}
 @keyframes barGrow{from{transform:scaleX(0)}}
-@keyframes halo{50%{opacity:.42}}
+/* the breath pulses SCALE, not opacity: state can drop at any moment, and an
+   opacity keyframe removed mid-cycle snaps 0.42 -> 1 before the fade-out even
+   starts. Scale is transitioned back on the same elements, so nothing pops. */
+@keyframes halo{50%{transform:scale(1.05)}}
 @keyframes floatY{50%{transform:translateY(-4px)}}
 
 .view{display:none;height:100%;position:relative;z-index:1}
@@ -153,17 +158,20 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 /* ===================== setup ===================== */
 #setup{flex-direction:column;align-items:center;justify-content:center;background:none}
+/* the accent rule is a background layer on the box itself, clipped by the box's
+   own padding edge — the engine derives that curve from the real radius minus
+   the real border, so the rule can never be wider or higher than the box it
+   sits on. A pseudo at inset:0 carrying border-radius:inherit claims the OUTER
+   radius on an inner-sized box, and its ends creep past the corner. */
 .setup-box{display:flex;flex-direction:column;align-items:center;text-align:center;
-  background:linear-gradient(180deg,var(--surface-hi),var(--glass)) padding-box,
+  background:var(--brand-90) top left/100% 3px no-repeat padding-box,
+             linear-gradient(180deg,var(--surface-hi),var(--glass)) padding-box,
              var(--rim-grad) border-box;
   border:1px solid transparent;border-radius:26px;
   -webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);
   box-shadow:var(--e3),0 0 0 1px rgba(var(--sh-a),.04);
   padding:48px 62px 42px;position:relative;overflow:hidden;
   animation:fadeUp .62s var(--out) backwards}
-.setup-box::before{content:'';position:absolute;inset:0;border-radius:inherit;
-  pointer-events:none;
-  background:var(--brand-90) top left/100% 3px no-repeat;opacity:.9}
 .setup-box::after{content:'';position:absolute;top:-210px;left:50%;width:420px;height:420px;
   margin-left:-210px;border-radius:999px;pointer-events:none;
   background:radial-gradient(closest-side,var(--accent-wash),transparent)}
@@ -240,8 +248,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   box-shadow:0 6px 14px -7px rgba(var(--sh-a),.6),0 0 0 1px var(--border),
              inset 0 1px 0 rgba(255,255,255,.3)}
 .brand .n{font-family:var(--f-display);font-size:17px;letter-spacing:-.015em;color:var(--text)}
+/* 9px caps on the tinted sidebar need the darker tier to clear 4.5:1 */
 .brand .s{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--muted);margin-top:2px}
+  color:var(--text2);margin-top:2px}
 .nav{display:flex;flex-direction:column;gap:4px;margin-top:28px}
 .nav-item{display:flex;align-items:center;gap:11px;height:37px;padding:0 12px;border-radius:12px;
   font-size:13px;font-weight:600;color:var(--text2);width:100%;text-align:left;position:relative;
@@ -249,13 +258,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   transition:background .2s ease,color .2s ease,transform .26s var(--spring),
              box-shadow .24s var(--ease),border-color .2s}
 .nav-item:hover{background:var(--tint);color:var(--text);transform:translateX(3px)}
+/* the active marker is a background layer on the item's OWN border box, so the
+   12px radius clips it. As a 3px element at left:-1px / top:9px its ends stood
+   2.6px proud of where the corner curve begins and read as floating outside. */
 .nav-item.on{color:var(--text);transform:none;
-  background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
+  background:linear-gradient(180deg,var(--accent),var(--accent2))
+               left center/3px 19px no-repeat border-box,
+             linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
              var(--rim-grad) border-box;
-  box-shadow:var(--e2),0 6px 18px -12px var(--accent-glow)}
-.nav-item.on::before{content:'';position:absolute;left:-1px;top:9px;bottom:9px;width:3px;
-  border-radius:0 4px 4px 0;background:linear-gradient(180deg,var(--accent),var(--accent2));
-  box-shadow:0 0 12px 0 var(--accent-glow)}
+  box-shadow:var(--e2),0 6px 18px -12px var(--accent-glow),
+             -2px 0 12px -4px var(--accent-glow)}
 .nav-item svg{stroke:var(--muted);transition:stroke .2s ease,transform .3s var(--spring)}
 .nav-item:hover svg{stroke:var(--text2);transform:scale(1.08)}
 .nav-item.on svg{stroke:var(--accent);filter:drop-shadow(0 2px 5px var(--accent-glow))}
@@ -266,7 +278,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   color:#fff;box-shadow:0 6px 14px -6px var(--accent-glow),inset 0 1px 0 rgba(255,255,255,.35)}
 .profile .pn{font-size:12.5px;font-weight:600}
 .profile .ps{font-size:9px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--muted);margin-top:2px}
+  color:var(--text2);margin-top:2px}
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 .page{flex:1;display:none;flex-direction:column;padding:11px 12px 14px 6px;min-height:0;
   overflow:visible}
@@ -289,8 +301,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 /* the status card is the hero — a lit slab on its own halo */
 .status-stage{position:relative;flex:none;margin-top:16px;
   animation:cardIn .6s .06s var(--out) backwards}
+/* two empty shadows so every state -> state hop interpolates instead of
+   snapping (a 1-vs-2 shadow list falls back to a discrete swap) */
 .sc-halo{position:absolute;inset:8px 10px;border-radius:22px;pointer-events:none;z-index:0;
-  opacity:0;transition:opacity .45s ease;box-shadow:0 0 0 0 transparent}
+  opacity:0;box-shadow:0 0 0 0 transparent,0 0 0 0 transparent;
+  transition:opacity .45s ease,box-shadow .45s ease,transform .45s ease}
 .status-stage:has(#spill.recording) .sc-halo{opacity:1;
   box-shadow:0 0 0 5px var(--rec-tint),0 0 54px 10px var(--rec-glow);
   animation:halo 2.3s ease-in-out infinite}
@@ -333,12 +348,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .status-top,.status-bottom{position:relative;z-index:2}
 .status-top{display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:15px 17px 14px}
+/* the idle look is the BASE, not a modifier: Python owns this class and can
+   push a state this stylesheet has never heard of — an unstyled pill would be
+   a transparent hole where the status lives */
 .spill{display:inline-flex;align-items:center;gap:9px;height:31px;padding:0 15px;
   border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.006em;
-  border:1px solid transparent;
+  background:var(--tint);border:1px solid var(--border-strong);color:var(--text2);
   box-shadow:0 1px 2px rgba(var(--sh-a),.16),0 6px 14px -10px rgba(var(--sh-a),.4),
              inset 0 1px 0 var(--rim-top);
   transition:background .3s,border-color .3s,color .3s,box-shadow .3s}
+.spill .dot{background:var(--faint)}
 .spill.idle{background:var(--tint);border-color:var(--border-strong);color:var(--text2)}
 .spill.idle .dot{background:var(--faint)}
 .spill.recording{background:var(--rec-tint);border-color:var(--rec-tint-b);color:var(--rec-text);
@@ -369,7 +388,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   transition:background .35s ease,box-shadow .35s ease}
 #meter::before{content:'';position:absolute;inset:-8px -12px;border-radius:999px;opacity:0;
   background:radial-gradient(closest-side,var(--rec-glow),transparent);
-  transition:opacity .35s ease;pointer-events:none}
+  transition:opacity .35s ease,transform .35s ease;pointer-events:none}
 #meter.live{background:var(--rec-tint);
   box-shadow:inset 0 2px 5px rgba(var(--sh-a),.18),0 0 0 1px var(--rec-tint-b),
              0 0 22px -6px var(--rec-glow)}
@@ -421,6 +440,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .switch.on::after{left:20px}
 .switch:active::after{width:22px}
 .switch.on:active::after{left:16px}
+/* the shared focus rule replaces box-shadow outright, which flattened the
+   switch's well while it held focus — re-state the ring WITH the depth */
+.switch:focus-visible{box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1px var(--accent),
+  inset 0 2px 4px var(--well),inset 0 -1px 0 var(--rim-top)}
+.switch.on:focus-visible{box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1px var(--accent),
+  inset 0 1px 2px rgba(0,0,0,.18)}
 
 .tools-row{margin-top:16px;display:flex;align-items:center;gap:10px;flex:none;
   animation:cardIn .6s .14s var(--out) backwards}
@@ -447,7 +472,10 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   gap:5px;white-space:nowrap}
 
 /* ---- the feed: dramatic shell, serene content ---- */
-#feed{margin-top:14px;flex:1;min-height:0;overflow-y:auto;padding:0 8px 8px 2px;
+/* overflow-x must be pinned: a non-visible overflow-y makes the other axis
+   compute to auto, and the hover translateX on .row grew the scroll width
+   enough to flash a horizontal scrollbar under the cursor */
+#feed{margin-top:14px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 8px 8px 2px;
   animation:riseIn .6s .2s var(--out) backwards}
 .day-label{display:flex;align-items:center;gap:12px;font-size:9.5px;font-weight:700;
   letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:19px 12px 10px 30px}
@@ -506,9 +534,15 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   box-shadow:0 6px 12px -6px var(--accent-glow),inset 0 1px 0 var(--rim-top)}
 .badge.gold{background:var(--gold-tint);border-color:var(--gold-tint-b);color:var(--gold)}
 .row:hover .badge.gold{box-shadow:0 6px 12px -6px var(--gold-glow),inset 0 1px 0 var(--rim-top)}
-.row .hov{display:none;align-items:center;gap:6px}
-.row:hover .hov,.row.menu-open .hov{display:flex}
-.copy-btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;
+/* the actions keep their slot at all times — toggling display made the badge
+   beside them jump sideways the moment the pointer touched the row.
+   :focus-within is not optional here: opacity:0 leaves them tabbable. */
+.row .hov{display:flex;align-items:center;gap:6px;opacity:0;pointer-events:none;
+  transition:opacity .16s ease}
+.row:hover .hov,.row.menu-open .hov,.row:focus-within .hov{opacity:1;pointer-events:auto}
+/* min-width holds the box steady when the label flips to "Copied" */
+.copy-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:26px;
+  padding:0 11px;min-width:82px;
   border-radius:9px;background:var(--tint);border:1px solid var(--border-strong);color:var(--text2);
   font-size:11px;font-weight:600;box-shadow:inset 0 1px 0 var(--rim-top);
   transition:background .18s,color .18s,border-color .18s,transform .22s var(--spring),box-shadow .2s}
@@ -569,25 +603,37 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   animation:floatY 5s ease-in-out infinite}
 #empty p{font-size:13px;line-height:1.75;color:var(--text2);max-width:352px}
 #empty .apps{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--faint)}
+  color:var(--muted)}
 #empty .apps b{color:var(--text2);font-weight:700}
 
 /* ---- stats rail ---- */
 #dict-rail{width:264px;flex:none;display:flex;flex-direction:column;gap:14px;padding-top:56px;
   perspective:1200px}
-.rail-card{border-radius:20px;padding:17px 18px;display:flex;flex-direction:column;
+/* same depth contract as .ins-card — .rail-stat lifts to Z=16px on hover and
+   lands back on Z=0, so the card's paint has to live behind that plane. The
+   card also carries no border of its own, so inset:0 on the paint layer is
+   EXACTLY the card's rounded box: the 1px border lives on the layer that draws
+   it, and nothing is ever positioned outside its own containing block. */
+.rail-card{border-radius:20px;padding:18px 19px;display:flex;flex-direction:column;
+  position:relative;background:none;
+  perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
+  transition:transform .45s var(--spring);
+  animation:cardIn .6s .22s var(--out) backwards}
+.rail-card>*{position:relative;z-index:1}
+.rail-card::before{content:'';position:absolute;inset:0;z-index:0;
+  border:1px solid transparent;border-radius:inherit;pointer-events:none;
+  transform:translateZ(-1px);
   background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
              var(--rim-grad) border-box;
-  border:1px solid transparent;box-shadow:var(--e2);
-  perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
-  transition:transform .45s var(--spring),box-shadow .4s var(--ease);
-  animation:cardIn .6s .22s var(--out) backwards}
-.rail-card:hover{transform:perspective(1100px) translateY(-7px) rotateX(5deg) scale(1.015);
-  box-shadow:var(--e3),var(--sh-glow)}
+  box-shadow:var(--e2);transition:box-shadow .4s var(--ease)}
+.rail-card:hover{transform:perspective(1100px) translateY(-7px) rotateX(5deg) scale(1.015)}
+.rail-card:hover::before{box-shadow:var(--e3),var(--sh-glow)}
 .rail-stat{display:flex;flex-direction:column;gap:3px;padding:14px 0;
   border-bottom:1px solid var(--divider);transition:transform .45s var(--spring)}
 .rail-card:hover .rail-stat{transform:translateZ(16px)}
-.rail-stat:first-of-type{padding-top:16px}
+/* :first-of-type never matched — .section-label is the first div in the card,
+   so the top stat has been sitting 2px tight since it was written */
+.section-label+.rail-stat{padding-top:16px}
 .rail-stat:last-child{border-bottom:none;padding-bottom:2px}
 .rail-stat .v{font-family:var(--f-display);font-size:29px;line-height:1.05;letter-spacing:-.024em;
   font-variant-numeric:tabular-nums;
@@ -628,28 +674,56 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 #update-banner .us{font-size:11.5px;line-height:1.55;color:var(--text2);margin-top:3px}
 
 /* ===================== insights ===================== */
-#page-insights{overflow-y:auto;padding-bottom:28px;perspective:1400px}
+#page-insights{overflow-y:auto;overflow-x:hidden;padding-bottom:28px;perspective:1400px}
 .ins-grid{display:flex;gap:14px;margin-top:18px;flex:none}
-.ins-card{border-radius:20px;padding:16px 18px 18px;display:flex;flex-direction:column;gap:3px;
-  flex:1;position:relative;
+/* ---------------------------------------------------------------------------
+   THE CARD PAINTS NOTHING ITSELF.
+   .ins-card is a preserve-3d context and its contents lift on translateZ, so
+   anything the card drew on its own box sat at exactly Z=0 — the plane the
+   contents land back on when the pointer leaves. WebView2's compositor has no
+   defined order for co-planar layers and sorted the text BEHIND the card
+   background: the card stayed, its contents vanished.
+   Fixed by giving every layer its own depth, so no two are ever co-planar:
+       ::before  Z = -1px    fill + rim border + elevation
+       ::after   Z = -0.5px  accent rule + hover wash
+       contents  Z =  0      (and up to +40px on hover)
+   The contents can now return to Z=0 at any point in the transition, be caught
+   mid-flight, or re-enter instantly, and they are still strictly in front.
+
+   THE CARD ITSELF CARRIES NO BORDER, so inset:0 on both layers is EXACTLY the
+   card's rounded box: the 1px border lives on the layer that paints it, and no
+   layer is ever positioned outside its own containing block. That is what fixes
+   the escaping accent rule — it used to ride the same layer as the rim border,
+   which sat at inset:-1px, so under the hover tilt (rotateX(6deg) scale(1.018)
+   through perspective:900px) the overhang projected into view and the rule read
+   as floating 1px proud of the card with its ends past the corner curve.
+   The rule now has its own layer, clipped to that layer's PADDING edge — a
+   curve the engine derives from the real radius minus the real border, so it
+   can never be wider or higher than the card. It still grows on background-size
+   rather than scaleX, because both layers own a translateZ that must not change.
+   --------------------------------------------------------------------------- */
+.ins-card{border-radius:20px;padding:17px 19px 19px;display:flex;flex-direction:column;gap:3px;
+  flex:1;position:relative;background:none;
+  perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
+  transition:transform .45s var(--spring)}
+.ins-card>*{position:relative;z-index:1}
+.ins-card::before{content:'';position:absolute;inset:0;z-index:0;
+  border:1px solid transparent;border-radius:inherit;pointer-events:none;
+  transform:translateZ(-1px);
   background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
              var(--rim-grad) border-box;
-  border:1px solid transparent;box-shadow:var(--e2);
-  perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
-  transition:transform .45s var(--spring),box-shadow .4s var(--ease)}
-.ins-card>*{position:relative;z-index:1}
-.ins-card::before{content:'';position:absolute;inset:0;z-index:2;
-  border-radius:inherit;pointer-events:none;
-  background:var(--grad-90) top left/100% 2px no-repeat;
-  transform:scaleX(0);transform-origin:left;
-  transition:transform .5s var(--out)}
-.ins-card::after{content:'';position:absolute;inset:0;z-index:0;border-radius:inherit;
-  pointer-events:none;opacity:0;transition:opacity .4s ease;
-  background:radial-gradient(75% 90% at 88% 4%,var(--accent-wash),transparent 66%)}
-.ins-card:hover{transform:perspective(1100px) translateY(-8px) rotateX(6deg) scale(1.018);
-  box-shadow:var(--e3),var(--sh-glow)}
-.ins-card:hover::before{transform:scaleX(1)}
-.ins-card:hover::after{opacity:1}
+  box-shadow:var(--e2);
+  transition:box-shadow .4s var(--ease)}
+.ins-card::after{content:'';position:absolute;inset:0;z-index:0;
+  border:1px solid transparent;border-radius:inherit;pointer-events:none;
+  opacity:0;transform:translateZ(-.5px);
+  background:linear-gradient(90deg,var(--accent),var(--accent2))
+               top left/0% 2px no-repeat padding-box,
+             radial-gradient(75% 90% at 88% 4%,var(--accent-wash),transparent 66%) border-box;
+  transition:opacity .4s ease,background-size .5s var(--out)}
+.ins-card:hover{transform:perspective(1100px) translateY(-8px) rotateX(6deg) scale(1.018)}
+.ins-card:hover::before{box-shadow:var(--e3),var(--sh-glow)}
+.ins-card:hover::after{opacity:1;background-size:100% 2px,auto}
 .ins-card .k{display:inline-flex;align-items:center;gap:9px;font-size:9.5px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;color:var(--muted);white-space:nowrap;
   transition:transform .45s var(--spring)}
@@ -671,16 +745,19 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   color:var(--accent);opacity:.08;pointer-events:none;
   transition:opacity .4s ease,transform .55s var(--spring)}
 .ins-card:hover .orn{opacity:.16;transform:rotate(-12deg) scale(1.08) translateZ(6px)}
-/* cards deal themselves in each time the page opens */
+/* Cards deal themselves in each time the page opens. The stagger is capped at
+   220ms end to end: fill-mode backwards holds a card at opacity:0 for the whole
+   of its delay, so a long tail meant flipping between pages quickly showed a
+   grid that was still half empty. */
 .page.on .ins-card{animation:cardIn .55s var(--out) backwards}
-.ins-grid .ins-card:nth-child(2){animation-delay:.06s}
-.ins-grid .ins-card:nth-child(3){animation-delay:.12s}
-.ins-grid .ins-card:nth-child(4){animation-delay:.18s}
-.page.on .mix-card{animation-delay:.24s}
-.page.on .heat-card{animation-delay:.3s}
-.ins-side .ins-card:nth-child(1){animation-delay:.34s}
-.ins-side .ins-card:nth-child(2){animation-delay:.38s}
-.ins-side .ins-card:nth-child(3){animation-delay:.42s}
+.ins-grid .ins-card:nth-child(2){animation-delay:.04s}
+.ins-grid .ins-card:nth-child(3){animation-delay:.08s}
+.ins-grid .ins-card:nth-child(4){animation-delay:.12s}
+.page.on .mix-card{animation-delay:.14s}
+.page.on .heat-card{animation-delay:.16s}
+.ins-side .ins-card:nth-child(1){animation-delay:.18s}
+.ins-side .ins-card:nth-child(2){animation-delay:.2s}
+.ins-side .ins-card:nth-child(3){animation-delay:.22s}
 
 /* ---- speed gauge: a dial with real depth ---- */
 .speed-card{flex:1.3;flex-direction:row;align-items:center;justify-content:space-between;gap:14px}
@@ -741,8 +818,10 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .heat-days span:nth-child(3){grid-row:5}
 .heat-scroll{display:flex;flex-direction:column;gap:5px;min-width:0;overflow-x:auto;
   padding-bottom:4px}
-#heat-months{display:flex;font-size:9px;font-weight:700;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--muted)}
+/* fixed height so the month strip + the 5px column gap add up to the 19px
+   .heat-days padding — otherwise Mon/Wed/Fri drifted off their own rows */
+#heat-months{display:flex;height:14px;line-height:14px;font-size:9px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .heat-grid{display:grid;grid-template-rows:repeat(7,var(--cell));grid-auto-flow:column;
   grid-auto-columns:var(--cell);gap:var(--cellgap);perspective:1200px}
 .heat-grid i{width:var(--cell);height:var(--cell);border-radius:4px;position:relative;z-index:0;
@@ -757,6 +836,9 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .heat-grid i:has(+ i + i + i + i + i + i + i:hover){z-index:2;
   transform:translateZ(12px) scale(1.22);
   box-shadow:0 5px 11px -5px rgba(var(--sh-a),.6)}
+/* days past the end of the month grid are painted transparent — without this
+   they still answered the cursor, lifting an invisible tile and its shadow */
+.heat-grid i.fut{pointer-events:none;box-shadow:none}
 .heat-legend{display:flex;align-items:center;gap:4px;font-size:9px;font-weight:700;
   letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
 .heat-legend i{width:10px;height:10px;border-radius:3px;display:inline-block;
@@ -786,17 +868,19 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   font-variant-numeric:tabular-nums}
 
 /* ===================== dictionary + snippets ===================== */
-#page-dictionary{overflow-y:auto;perspective:1400px}
+#page-dictionary{overflow-y:auto;overflow-x:hidden;perspective:1400px}
 .dic-wrap{max-width:760px;display:flex;flex-direction:column}
 .dic-hero{position:relative;overflow:hidden;margin-top:18px;border-radius:20px;
   padding:21px 23px;display:flex;align-items:center;justify-content:space-between;gap:20px;
-  background:linear-gradient(180deg,var(--accent-tint),var(--accent-soft)) padding-box,
+  /* accent rule as a background layer clipped to this box's own padding edge —
+     see .setup-box: a pseudo at inset:0 with border-radius:inherit is a 1px
+     mismatch against the curve it is meant to sit on */
+  background:var(--grad-90) top left/100% 2px no-repeat padding-box,
+             linear-gradient(180deg,var(--accent-tint),var(--accent-soft)) padding-box,
              var(--rim-grad-soft) border-box;
   border:1px solid transparent;
   box-shadow:var(--e2),0 20px 44px -28px var(--accent-glow);
   animation:cardIn .55s .06s var(--out) backwards}
-.dic-hero::before{content:'';position:absolute;inset:0;border-radius:inherit;
-  pointer-events:none;background:var(--grad-90) top left/100% 2px no-repeat}
 .dic-hero::after{content:'';position:absolute;top:-62%;right:-6%;width:250px;height:250px;
   border-radius:999px;pointer-events:none;
   background:radial-gradient(closest-side,var(--accent-wash),transparent)}
@@ -817,8 +901,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .dic-row .w{flex:1;font-size:13px;color:var(--text2);-webkit-user-select:text;user-select:text}
 .dic-row .r{flex:1;font-size:13px;font-weight:600;-webkit-user-select:text;user-select:text}
 .dic-row.ar .w,.dic-row.ar .r{font-family:var(--f-ar);font-size:14.5px;text-align:right;direction:rtl}
-.dic-row .acts{display:none;gap:4px}
-.dic-row:hover .acts{display:flex}
+.dic-row .acts{display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.dic-row:hover .acts,.dic-row:focus-within .acts{opacity:1;pointer-events:auto}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
   border-radius:9px;color:var(--text2);
   transition:background .16s,color .16s,transform .22s var(--spring),box-shadow .2s}
@@ -851,8 +935,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .snip-row:hover .st .bolt{transform:scale(1.2) rotate(-6deg)}
 .snip-row .sx{flex:1;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;-webkit-user-select:text;user-select:text}
-.snip-row .acts{display:none;gap:4px}
-.snip-row:hover .acts{display:flex}
+.snip-row .acts{display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.snip-row:hover .acts,.snip-row:focus-within .acts{opacity:1;pointer-events:auto}
 .snip-edit{display:flex;flex-direction:column;gap:9px;padding:14px 17px;
   border-bottom:1px solid var(--divider);background:var(--field);
   box-shadow:inset 0 2px 6px var(--well)}
@@ -865,7 +949,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .snip-edit .se-acts{display:flex;gap:8px;justify-content:flex-end}
 
 /* ===================== settings ===================== */
-#page-settings{overflow-y:auto;perspective:1400px}
+#page-settings{overflow-y:auto;overflow-x:hidden;perspective:1400px}
 .set-wrap{max-width:722px;display:flex;flex-direction:column;padding-bottom:8px}
 .set-card{margin-top:10px;border-radius:20px;padding:0 18px;
   background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
@@ -1273,6 +1357,10 @@ const BADGE_ICON = {
   edit:'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5z"/></svg>',
   bolt:'<svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2L4 13.5h5.5L9 22l9.5-11.5H13z"/></svg>'
 };
+/* copy button faces — the confirm keeps an icon instead of swapping in a bare
+   ✓ glyph, which fell back to a different font and resized the button */
+const COPY_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+const DONE_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>';
 let S = {}, HISTORY = [], state = 'idle', startedAt = 0;
 let level = 0, dispLevel = 0, openMenuTs = null;
 const MULT = [0.5,0.8,1.0,0.65,0.9,0.55,0.75];
@@ -1299,6 +1387,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 
 /* ---------- 60fps meter + timer ---------- */
 const meterBars = Array.from($('meter').children);
+const IDLE_H = [6,10,14,8,12,7,10];
 function raf(){
   const target = state === 'recording' ? Math.min(1, level * 9) : 0;
   dispLevel += (target - dispLevel) * (target > dispLevel ? 0.35 : 0.08);
@@ -1308,8 +1397,10 @@ function raf(){
     if (state === 'recording'){
       const wig = 0.72 + 0.28 * Math.sin(t * 9 + i * 1.7);
       h = 5 + Math.min(15, dispLevel * 120 * MULT[i] * wig);
-    } else h = [6,10,14,8,12,7,10][i];
-    b.style.height = h + 'px';
+    } else h = IDLE_H[i];
+    // idle, every bar is already at its resting height — writing the same
+    // value 60x a second still dirties style on a tray app that mostly sits
+    if (b._h !== h){ b._h = h; b.style.height = h + 'px'; }
   });
   if (state === 'recording' && startedAt){
     const secs = Math.max(0, Math.floor(Date.now()/1000 - startedAt));
@@ -1504,11 +1595,13 @@ function buildRow(e){
   hov.className = 'hov';
   const copy = document.createElement('button');
   copy.className = 'copy-btn';
-  copy.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy';
+  copy.innerHTML = COPY_ICON + 'Copy';
+  let copyT = 0;
   copy.onclick = ev => { ev.stopPropagation();
     api('copy_text', e.text);
-    copy.textContent = '✓ Copied'; copy.classList.add('done');
-    setTimeout(() => { copy.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy'; copy.classList.remove('done'); }, 1300);
+    copy.innerHTML = DONE_ICON + 'Copied'; copy.classList.add('done');
+    clearTimeout(copyT);  // rapid re-clicks must not restore early
+    copyT = setTimeout(() => { copy.innerHTML = COPY_ICON + 'Copy'; copy.classList.remove('done'); }, 1300);
   };
   const dots = document.createElement('button');
   dots.className = 'dots-btn';
@@ -1676,7 +1769,7 @@ function renderHeatmap(){
     for (let d = 0; d < 7; d++){
       const day = new Date(start); day.setDate(day.getDate() + w * 7 + d);
       const cell = document.createElement('i');
-      if (day > today) cell.style.background = 'transparent';
+      if (day > today){ cell.className = 'fut'; cell.style.background = 'transparent'; }
       else {
         const c = counts[day.toDateString()] || 0;
         const lvl = c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4;
@@ -2067,10 +2160,15 @@ setTimeout(() => {
     let mine = null, from = 0, frame = 0;
     new MutationObserver(() => {
       const txt = el.textContent;
-      if (txt === mine || !NUM.test(txt)) return;
+      if (txt === mine) return;
+      // Any write that is not ours wins immediately — kill the roll in flight
+      // first. Bailing out on a non-numeric value while a roll was still
+      // running let that roll finish and overwrite it: deleting the last
+      // entry set the stat to '—' and the old total counted itself back in.
+      cancelAnimationFrame(frame);
+      if (!NUM.test(txt)){ mine = txt; from = 0; return; }
       const to = +txt.replace(/,/g, '');
       if (to === from){ mine = txt; return; }
-      cancelAnimationFrame(frame);
       const a = from, t0 = performance.now(), dur = Math.min(1000, 320 + Math.abs(to - a) / 4);
       const step = now => {
         const p = Math.min(1, (now - t0) / dur);

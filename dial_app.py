@@ -1,4 +1,4 @@
-"""Dial Flow — Arabic+English dictation with a GPU-composited web UI.
+﻿"""Dial Flow â€” Arabic+English dictation with a GPU-composited web UI.
 
 Architecture: Python engine (recording, Cohere transcription, Flow cleanup,
 hotkeys, tray, chimes) + pywebview/WebView2 frontend (web/index.html) for
@@ -64,18 +64,18 @@ PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
 PANEL_W, PANEL_H = 232, 150  # expanded popup: status + dock picker
-# Docked to a side everything stands up — including HOVER. A wide hover box
+# Docked to a side everything stands up â€” including HOVER. A wide hover box
 # on a side dock was shorter than the upright bar it grew from, so the window
 # shrank vertically out from under the cursor: mouseleave fired, the pill
 # shrank back, the cursor was inside again, mouseenter fired. That loop is
 # what made the side buttons unclickable. Every grown size below CONTAINS
-# the size it grows from, on both axes — see _grow_to_contain.
+# the size it grows from, on both axes â€” see _grow_to_contain.
 VPILL_W, VPILL_H = 38, 150
 VMINI_W, VMINI_H = 16, 76
 VHOVER_W, VHOVER_H = 54, 178
 PILL_PAD = 0                # flush: the tab is a handle ON the edge
 DOCKS = ("left", "bottom", "right")
-PILL_BG = "#171320"  # warm plum-black — matches the app's dark identity
+PILL_BG = "#171320"  # warm plum-black â€” matches the app's dark identity
 UPDATE_API = "https://api.github.com/repos/Dialverse-ai/dial-flow/releases/latest"
 UPDATE_EVERY_H = 6  # re-check interval; a launch-only check never reaches a
                     # tray-resident app that stays open for days
@@ -149,7 +149,7 @@ APP_PROMPTS = {
              "email prose: short clear paragraphs, complete sentences; keep a "
              "greeting or sign-off only if the speaker actually said one.",
     "chat": "The text will be pasted into a CHAT app. Keep it short and "
-            "natural, like a message to a colleague — no formal restructuring.",
+            "natural, like a message to a colleague â€” no formal restructuring.",
     "docs": "The text will be pasted into a DOCUMENT. Use structured prose "
             "with paragraph breaks; if the speaker enumerates items, format "
             "them as a list with '- ' bullets.",
@@ -164,18 +164,18 @@ TONE_PROMPTS = {
                     "workplace-appropriate language (same meaning, no new "
                     "content).",
     "casual": "Keep the wording relaxed and conversational.",
-    "prompt": "",  # handled by PROMPT_MODE — it replaces the whole recipe
+    "prompt": "",  # handled by PROMPT_MODE â€” it replaces the whole recipe
 }
 
 # Dictating a prompt to an AI is this app's dominant use. The FIRST version
-# of this rewrote the speaker's words into imperative task lists — "what is
+# of this rewrote the speaker's words into imperative task lists â€” "what is
 # flow mode 2.0?" came back as "1. Explain what Flow Mode 2.0 is." That is
 # fabrication, not formatting. This version reorganizes and nothing else.
 PROMPT_MODE = (
     "You are a TRANSCRIPT FORMATTER. The text is speech dictated by a user "
     "who will send it to an AI assistant. You reorganize their words. You "
     "do not rewrite them.\n"
-    "ALLOWED — pick whatever structure the content actually calls for:\n"
+    "ALLOWED â€” pick whatever structure the content actually calls for:\n"
     "- Prose in paragraphs, separated by a blank line, when they are "
     "explaining, describing or reasoning. Most speech is this. Do NOT force "
     "it into a list.\n"
@@ -187,11 +187,11 @@ PROMPT_MODE = (
     "- Move a clearly-stated overall goal to the top if it was said late.\n"
     "- Fix punctuation, capitalization and obvious speech-to-text word "
     "errors.\n"
-    "- Delete filler ('um', 'so yeah', 'you know', 'يعني' as filler) and "
+    "- Delete filler ('um', 'so yeah', 'you know', 'ÙŠØ¹Ù†ÙŠ' as filler) and "
     "false starts, keeping only the corrected half of a self-correction.\n"
-    "FORBIDDEN — these are failures, not improvements:\n"
+    "FORBIDDEN â€” these are failures, not improvements:\n"
     "- Rewriting a sentence into a different grammatical form. If they say "
-    "'what is X' it stays 'What is X?' — NEVER 'Explain what X is'.\n"
+    "'what is X' it stays 'What is X?' â€” NEVER 'Explain what X is'.\n"
     "- Introducing verbs or nouns they did not say (no 'Explain', "
     "'Clarify', 'Describe', 'Implement', 'Ensure', 'Provide').\n"
     "- Summarizing, condensing, merging distinct points, or dropping ANY "
@@ -215,7 +215,7 @@ CLEAN_CHARS = 1400
 def _app_context():
     """Category of the app the user is dictating into ('email', 'chat',
     'docs', 'code' or 'general'), from the foreground window's exe + title.
-    Captured at record start — that's the window the paste will land in."""
+    Captured at record start â€” that's the window the paste will land in."""
     try:
         u32 = ctypes.windll.user32
         k32 = ctypes.windll.kernel32
@@ -245,7 +245,7 @@ def _app_context():
 
 def _speech_present(audio):
     """Cheap voice-activity check: is there ANY 100ms window loud enough to
-    plausibly be speech? Silent accidental taps must never reach the API —
+    plausibly be speech? Silent accidental taps must never reach the API â€”
     the model hallucinates words from amplified nothing."""
     win = SAMPLE_RATE // 10
     n = len(audio) // win
@@ -259,7 +259,7 @@ def _speech_present(audio):
 def _enhance_audio(audio):
     """Near-zero-latency mic cleanup before transcription: high-pass out
     sub-75Hz rumble, then a GENTLE lift for quiet speech. Conservative on
-    purpose — hot gain amplifies background media/noise into hallucination
+    purpose â€” hot gain amplifies background media/noise into hallucination
     fuel and pushes real speech toward clipping."""
     if len(audio) < 1600:
         return audio
@@ -279,7 +279,7 @@ def _enhance_audio(audio):
 
 
 def _apply_autostart(enabled):
-    """Register/unregister launch-at-login via the per-user Run key —
+    """Register/unregister launch-at-login via the per-user Run key â€”
     the no-installer way to start with Windows. Only meaningful when frozen."""
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
@@ -309,7 +309,7 @@ def _load_pill_html():
         with open(PILL_FILE, encoding="utf-8") as f:
             return f.read()
     except OSError:
-        logging.exception("pill.html missing — using fallback")
+        logging.exception("pill.html missing â€” using fallback")
         return ("<!DOCTYPE html><html><body style='background:#171320'>"
                 "<script>window.app={start(){},level(){},mode(){},"
                 "done(){},failed(){},reckey(){},pos(){},vert(){}}"
@@ -338,7 +338,7 @@ class Settings(dict):
 
 def _bar_note(freq, dur, sr, decay=16.0):
     """One soft struck-bar (marimba-like) note: warm detuned harmonics with a
-    fast attack and natural exponential decay — not a raw electronic sine."""
+    fast attack and natural exponential decay â€” not a raw electronic sine."""
     n = int(sr * dur)
     t = np.arange(n) / sr
     env = np.exp(-t * decay)
@@ -394,7 +394,7 @@ def _send_ctrl_vk(letter_vk):
     """Layout-independent Ctrl+<key> via SendInput virtual keys.
 
     keyboard.send('ctrl+v') resolves the letter through the ACTIVE keyboard
-    layout — with an Arabic layout (browsers, WhatsApp Web) that misfires and
+    layout â€” with an Arabic layout (browsers, WhatsApp Web) that misfires and
     nothing happens. VK codes name the physical shortcut, which Windows apps
     recognize under any layout."""
     def key(vk, up=False):
@@ -420,7 +420,7 @@ def _send_copy():
 
 def _send_type(text):
     """Simulate real keystrokes via KEYEVENTF_UNICODE for fields that block
-    Ctrl+V (terminals, some CRM iframes). Newlines go as VK_RETURN — many
+    Ctrl+V (terminals, some CRM iframes). Newlines go as VK_RETURN â€” many
     editors ignore a typed U+000A. Sent in chunks so target apps keep up."""
     UNICODE, KEYUP = 0x0004, 0x0002
 
@@ -481,7 +481,7 @@ def _match_snippet(text, snippets):
     Returns (text, consumed_rest) or None.
     """
     def norm(s):
-        return re.sub(r"\s+", " ", s).strip().strip(".!?,،؟ ").lower()
+        return re.sub(r"\s+", " ", s).strip().strip(".!?,ØŒØŸ ").lower()
 
     n = norm(text)
     if not n:
@@ -495,7 +495,7 @@ def _match_snippet(text, snippets):
             # a framing with no content yet: leave the placeholder visible
             return body.replace("{}", "").strip() if "{}" in body else body
         if "{}" in body and n.startswith(trig + " "):
-            rest = text.strip()[len(trig):].lstrip(" ,،:-").strip()
+            rest = text.strip()[len(trig):].lstrip(" ,ØŒ:-").strip()
             if rest:
                 return body.replace("{}", rest)
     return None
@@ -535,12 +535,12 @@ class Engine:
         self.quitting = False
         # ONE pooled session for every API call. Bare requests.post() builds
         # and throws away a Session per call, so each ASR chunk and each Flow
-        # chunk paid a fresh DNS + TCP + TLS handshake — 300-500ms apiece, and
+        # chunk paid a fresh DNS + TCP + TLS handshake â€” 300-500ms apiece, and
         # a long take makes half a dozen of them. Keep-alive makes all but the
         # first free.
         self._http = requests.Session()
         self.rebuild_chimes()
-        # first device-open of a session is the slow one — take that hit now
+        # first device-open of a session is the slow one â€” take that hit now
         threading.Thread(target=self._prewarm_mic, daemon=True).start()
         # ...and the first TLS handshake likewise: open the socket before the
         # user ever hits record, so take one is as fast as take two
@@ -557,7 +557,7 @@ class Engine:
 
     def cancel(self):
         """Drop whatever is in flight. A live recording is still written to
-        disk first — cancelling must never be the thing that loses audio,
+        disk first â€” cancelling must never be the thing that loses audio,
         and the saved take stays retryable from history."""
         self._gen += 1
         audio = None
@@ -599,7 +599,7 @@ class Engine:
 
     def rebuild_chimes(self):
         amp = max(0, min(100, self.settings.get("chime_volume", 40))) / 100 * 0.5
-        # start: short ~140ms tick — it plays synchronously before the mic
+        # start: short ~140ms tick â€” it plays synchronously before the mic
         # opens, so its length is pure key-to-recording latency
         self.start_wav = _chime_wav([(659, 0), (988, 55)], amp,
                                     total=0.14, decay=30.0)
@@ -668,8 +668,8 @@ class Engine:
             self.start_recording()
 
     def start_refine(self):
-        """Speak a correction that is applied to the LAST thing pasted —
-        'make it shorter', 'drop point three', 'اعملها رسمية'. Command mode
+        """Speak a correction that is applied to the LAST thing pasted â€”
+        'make it shorter', 'drop point three', 'Ø§Ø¹Ù…Ù„Ù‡Ø§ Ø±Ø³Ù…ÙŠØ©'. Command mode
         needs you to select text first; this reaches for what you just
         dictated, which is usually what you want to iterate on."""
         if self.recording:
@@ -692,7 +692,7 @@ class Engine:
             if self.recording:
                 return
             self._starting = True
-            # NB: _want_stop is NOT reset here — hold-to-talk can release the
+            # NB: _want_stop is NOT reset here â€” hold-to-talk can release the
             # key during start_command's clipboard capture (before this runs),
             # and that early release must still stop the recording below
             # UI first: the pill starts expanding the instant the key lands;
@@ -736,7 +736,7 @@ class Engine:
     def _start_watchdog(self):
         """Stop at MAX_SECONDS instead of recording forever. Without this a
         forgotten take grows the frame queue unbounded (~64KB/s) and then
-        gets silently truncated at stop time — minutes of speech vanishing
+        gets silently truncated at stop time â€” minutes of speech vanishing
         with no message."""
         started = self.started_at
 
@@ -770,21 +770,21 @@ class Engine:
             mode, self.mode = self.mode, "dictate"
             raw_once, self._raw_once = self._raw_once, False
             if not chunks or elapsed < 0.3:
-                self.on_state("idle", "Too short — ignored")
+                self.on_state("idle", "Too short â€” ignored")
                 return
             audio = np.concatenate(chunks).flatten()[: MAX_SECONDS * SAMPLE_RATE]
             if not _speech_present(audio):
-                # silent/accidental tap — never send it: the model invents
-                # words ("فراغ", "♫") from amplified nothing
-                self.on_state("idle", "Nothing heard — skipped")
+                # silent/accidental tap â€” never send it: the model invents
+                # words ("ÙØ±Ø§Øº", "â™«") from amplified nothing
+                self.on_state("idle", "Nothing heard â€” skipped")
                 return
             if self.settings.get("audio_enhance", True):
                 try:
                     audio = _enhance_audio(audio)
                 except Exception:
-                    logging.exception("audio enhance failed — using raw")
+                    logging.exception("audio enhance failed â€” using raw")
             self.on_state("transcribing", "")
-            # snapshot EVERYTHING the worker needs — a second recording
+            # snapshot EVERYTHING the worker needs â€” a second recording
             # started mid-transcription must not swap state under it
             if mode == "command":
                 self._spawn(self._command_transcribe, audio, elapsed,
@@ -799,13 +799,13 @@ class Engine:
     def _spawn(self, fn, *args):
         """Run a worker with a top-level guard. An unguarded raise killed the
         thread silently: no transcript, no error in the UI, and the pill stuck
-        on 'Transcribing…' until restart."""
+        on 'Transcribingâ€¦' until restart."""
         def run():
             try:
                 fn(*args)
             except Exception:
                 logging.exception("%s crashed", fn.__name__)
-                self._worker_state("error", "Something went wrong — see app.log")
+                self._worker_state("error", "Something went wrong â€” see app.log")
         threading.Thread(target=run, daemon=True).start()
 
     def _split_points(self, audio):
@@ -834,7 +834,7 @@ class Engine:
     def _asr(self, wav_bytes, lang):
         """Transcribe one already-encoded WAV. Returns (text, error)."""
         data = {"model": MODEL, "language": "ar" if lang == "auto" else lang}
-        last_err = "Network error — check connection"
+        last_err = "Network error â€” check connection"
         for attempt in range(4):
             try:
                 resp = self._http.post(
@@ -855,7 +855,7 @@ class Engine:
             if resp.status_code == 200:
                 return resp.json().get("text", "").strip(), None
             if resp.status_code == 429:
-                last_err = "Rate limited — try again in a minute"
+                last_err = "Rate limited â€” try again in a minute"
                 time.sleep(5.0)
                 continue
             logging.error("api %s: %s", resp.status_code, resp.text[:300])
@@ -868,7 +868,7 @@ class Engine:
         Long dictations used to fail outright: 16kHz PCM16 is ~32KB/s, so a
         3.5-minute take is a ~6.7MB single upload and a slow uplink times the
         write out (field failures 2026-07-31). Splitting into CHUNK_SECONDS
-        pieces keeps every request ~1.4MB, which uploads reliably — and a
+        pieces keeps every request ~1.4MB, which uploads reliably â€” and a
         chunk that still fails only costs its own slice, not the whole take.
 
         'auto' maps to 'ar': the API REQUIRES a language and rejects 'auto'
@@ -914,7 +914,7 @@ class Engine:
             if text:
                 parts.append(text)
         if not parts:
-            return None, "Network error — check connection"
+            return None, "Network error â€” check connection"
         out = " ".join(parts)
         if failed:
             # partial beats nothing, but it must NOT read as a clean success:
@@ -926,7 +926,7 @@ class Engine:
         return out, None
 
     def _keep_audio(self, wav_bytes, t0):
-        """Persist the take BEFORE any network I/O — a failed upload must
+        """Persist the take BEFORE any network I/O â€” a failed upload must
         never cost the user a re-record. Rolling cap; oldest pruned."""
         try:
             os.makedirs(AUDIO_DIR, exist_ok=True)
@@ -942,7 +942,7 @@ class Engine:
 
     def _worker_state(self, state, detail=""):
         """State pushes from finished/finishing workers. A live recording
-        owns the status UI — a stale worker's 'cleaning'/'idle'/'error' must
+        owns the status UI â€” a stale worker's 'cleaning'/'idle'/'error' must
         not stomp it on the main window or the pill."""
         if self.recording:
             return
@@ -953,7 +953,7 @@ class Engine:
 
     def _insert_text(self, text):
         """Deliver text into the focused field. The transcript always lands
-        in the clipboard too — manual Ctrl+V is the recovery path."""
+        in the clipboard too â€” manual Ctrl+V is the recovery path."""
         with self._clip_lock:
             pyperclip.copy(text)
             if self.settings.get("paste_mode", "paste") == "type":
@@ -961,7 +961,7 @@ class Engine:
             else:
                 # Wait for the clipboard to actually hold the text instead of
                 # sleeping a flat 150ms and hoping. Typically returns in a few
-                # ms — and unlike the fixed guess it is still correct when a
+                # ms â€” and unlike the fixed guess it is still correct when a
                 # clipboard manager makes the write slower than 150ms.
                 deadline = time.monotonic() + 0.15
                 while time.monotonic() < deadline:
@@ -982,17 +982,17 @@ class Engine:
         wav = buf.getvalue()
         # stays SYNCHRONOUS on purpose: persisting before any network I/O is
         # what guarantees a failed upload never costs the user a re-record.
-        # It is a local write of a couple of MB — tens of ms against seconds
+        # It is a local write of a couple of MB â€” tens of ms against seconds
         # of model latency, so there is nothing here worth trading away.
         audio_name = self._keep_audio(wav, t0)
         text, err = self._asr_audio(
             audio, lang,
             lambda i, n: self._worker_state("transcribing", f"{i}/{n}"))
         if self._cancelled(gen):
-            logging.info("transcribe cancelled — result dropped")
+            logging.info("transcribe cancelled â€” result dropped")
             return
         if err:
-            # the take is safe on disk — surface a retryable failed entry
+            # the take is safe on disk â€” surface a retryable failed entry
             # in the feed instead of throwing the recording away
             entry = {
                 "ts": time.time(), "lang": lang, "text": "",
@@ -1002,7 +1002,7 @@ class Engine:
                 "failed": err,
             }
             self.on_transcript(entry)
-            self._worker_state("error", err + (" — take saved, retry from "
+            self._worker_state("error", err + (" â€” take saved, retry from "
                                                "history" if audio_name else ""))
             return
         if not text:
@@ -1027,20 +1027,20 @@ class Engine:
         raw_text = text
         cleaned = False
         if raw_once:
-            logging.info("raw take (shift held) — Flow skipped")
+            logging.info("raw take (shift held) â€” Flow skipped")
         elif self.settings.get("flow_mode", True):
             self._worker_state("cleaning", "")
             out = self._flow_clean(text, app_ctx)
             if out:
                 text, cleaned = out, True
             else:
-                logging.warning("flow cleanup unavailable — pasted raw")
+                logging.warning("flow cleanup unavailable â€” pasted raw")
 
         text = _apply_dictionary(
             text, _parse_dictionary(self.settings.get("dictionary", "")))
 
         if self._cancelled(gen):
-            logging.info("cancelled during cleanup — not pasting")
+            logging.info("cancelled during cleanup â€” not pasting")
             return
         self._insert_text(text)
         entry = {
@@ -1063,15 +1063,15 @@ class Engine:
         if partial:
             self._worker_state(
                 "error", f"Part of that take was lost ({partial[0]}/"
-                         f"{partial[1]} sections) — retry from history")
+                         f"{partial[1]} sections) â€” retry from history")
         else:
             self._worker_state("idle", "" if cleaned or not self.settings.get(
                 "flow_mode", True)
-                else "Pasted raw — Flow couldn't reach the AI")
+                else "Pasted raw â€” Flow couldn't reach the AI")
 
     def transcribe_file(self, path, lang, on_progress=None):
         """Re-run transcription on a kept recording. Returns text or None.
-        Goes through the chunked path too — retries were failing on exactly
+        Goes through the chunked path too â€” retries were failing on exactly
         the long takes that needed them most."""
         try:
             audio, sr = sf.read(path, dtype="float32")
@@ -1135,14 +1135,14 @@ class Engine:
                             refine=False):
         t0 = time.time()
         gen = self._gen
-        # command takes were the one path that never hit disk — a failed or
+        # command takes were the one path that never hit disk â€” a failed or
         # cancelled voice-edit used to cost the recording outright
         buf = io.BytesIO()
         sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
         audio_name = self._keep_audio(buf.getvalue(), t0)
         instruction, err = self._asr_audio(audio, "auto")
         if self._cancelled(gen):
-            logging.info("command cancelled before edit — nothing pasted")
+            logging.info("command cancelled before edit â€” nothing pasted")
             return
         if err or not instruction:
             self._worker_state("error", err or "Didn't catch the instruction")
@@ -1150,18 +1150,18 @@ class Engine:
         self._worker_state("cleaning", "")
         out = self._chat(
             "You edit text by voice command. Apply the INSTRUCTION to the "
-            "TEXT and return ONLY the edited text — no quotes, no commentary, "
+            "TEXT and return ONLY the edited text â€” no quotes, no commentary, "
             "no explanation. Preserve the text's original language and "
             "formatting style unless the instruction says otherwise (e.g. "
             "asks for a translation).\n\n"
             f"INSTRUCTION: {instruction}\n\nTEXT:\n{selection}")
         if not out:
-            self._worker_state("error", "Edit failed — try again")
+            self._worker_state("error", "Edit failed â€” try again")
             return
         if self._cancelled(gen):
             # the user dismissed this edit and has almost certainly moved on;
             # pasting now would dump it into an unrelated window
-            logging.info("command cancelled during edit — not pasting")
+            logging.info("command cancelled during edit â€” not pasting")
             return
         # insertion replaces the still-highlighted selection in the target app
         self._insert_text(out)
@@ -1185,7 +1185,7 @@ class Engine:
 
     def _chat(self, prompt):
         """One Cohere chat call with the model-fallback chain. Transient
-        failures (429, network blips) retry — a silently skipped cleanup
+        failures (429, network blips) retry â€” a silently skipped cleanup
         reads to the user as 'the feature is broken'."""
         transient = 0
         # Snapshot the fallback cursor into a LOCAL. _clean_chunked now calls
@@ -1242,7 +1242,7 @@ class Engine:
                 continue
             logging.warning("chat api %s: %s", resp.status_code, resp.text[:200])
             return None
-        # every model 404'd (key lost access?) — re-probe from the top next
+        # every model 404'd (key lost access?) â€” re-probe from the top next
         # call instead of staying dead for the rest of the session
         self._clean_model_idx = 0
         return None
@@ -1255,7 +1255,7 @@ class Engine:
         if len(text) <= limit:
             return [text]
         parts, buf = [], ""
-        for piece in re.split(r"(?<=[.!?؟।\n])\s+", text):
+        for piece in re.split(r"(?<=[.!?ØŸà¥¤\n])\s+", text):
             if buf and len(buf) + len(piece) + 1 > limit:
                 parts.append(buf.strip())
                 buf = piece
@@ -1269,8 +1269,8 @@ class Engine:
     def _plausible(original, cleaned):
         """Is this cleanup trustworthy enough to paste?
 
-        A language model can degenerate — one real run returned
-        '(100)(2)(3)(4)(3)(3)(3)…' for a paragraph of speech — or quietly
+        A language model can degenerate â€” one real run returned
+        '(100)(2)(3)(4)(3)(3)(3)â€¦' for a paragraph of speech â€” or quietly
         summarize. For a text-FIDELITY task the output must be checked, not
         assumed. Rejecting a bad cleanup costs polish; accepting one costs
         the user's actual words."""
@@ -1306,7 +1306,7 @@ class Engine:
 
     def _clean_chunked(self, recipe, text, label):
         """Run `recipe` over the text in segments. A segment that fails or
-        comes back untrustworthy keeps its ORIGINAL text — losing the user's
+        comes back untrustworthy keeps its ORIGINAL text â€” losing the user's
         words is strictly worse than leaving them unpolished."""
         chunks = self._text_chunks(text)
         if len(chunks) == 1:
@@ -1319,7 +1319,7 @@ class Engine:
             return self._clean_one(recipe, label, chunks[0], 1, 1) or None
         # Segments are cleaned independently and re-joined in order, so the
         # sequential loop just stacked one full model latency per 1400 chars
-        # — a 3-chunk take waited for three round-trips back to back. Run
+        # â€” a 3-chunk take waited for three round-trips back to back. Run
         # them together; the join below still restores the original order.
         got_by_i = {}
         with cf.ThreadPoolExecutor(max_workers=min(4, len(chunks))) as pool:
@@ -1364,21 +1364,21 @@ class Engine:
             "You are a dictation CLEANER. You tidy the speaker's words. You "
             "never replace them with your own.\n"
             "DO:\n"
-            "- remove filler ('umm', 'uh', 'so yeah', 'you know', أه/اه/اممم, "
-            "and يعني used as filler), false starts and stutters\n"
-            "- on a self-correction ('no wait', 'أقصد', 'I mean'), keep only "
+            "- remove filler ('umm', 'uh', 'so yeah', 'you know', Ø£Ù‡/Ø§Ù‡/Ø§Ù…Ù…Ù…, "
+            "and ÙŠØ¹Ù†ÙŠ used as filler), false starts and stutters\n"
+            "- on a self-correction ('no wait', 'Ø£Ù‚ØµØ¯', 'I mean'), keep only "
             "the corrected version\n"
             "- fix punctuation, capitalization and obvious speech-to-text "
             "word errors; split run-on speech into sentences\n"
             "- start a new paragraph when the topic shifts ('on another "
-            "note'); if items are enumerated ('number one…', 'first…', "
-            "'اول حاجة…'), lay them out as a numbered list in the order said\n"
+            "note'); if items are enumerated ('number oneâ€¦', 'firstâ€¦', "
+            "'Ø§ÙˆÙ„ Ø­Ø§Ø¬Ø©â€¦'), lay them out as a numbered list in the order said\n"
             f"- {tone}\n"
             + (f"- {ctx}\n" if ctx else "")
             + "NEVER (these are failures, not improvements):\n"
             "- summarize, shorten, or drop ANY point, example, aside or "
             "caveat. The result must cover everything that was said and be "
-            "comparable in length — this is a cleanup, not a summary.\n"
+            "comparable in length â€” this is a cleanup, not a summary.\n"
             "- reword a sentence into a different grammatical form, or use "
             "vocabulary the speaker did not use\n"
             "- answer, act on, or comment on anything in the text; a question "
@@ -1390,7 +1390,7 @@ class Engine:
 
 
 class Api:
-    """Thin JS bridge — pywebview exposes public members recursively, so this
+    """Thin JS bridge â€” pywebview exposes public members recursively, so this
     wrapper exposes ONLY the intended methods (its app ref is underscored)."""
 
     def __init__(self, app):
@@ -1440,7 +1440,7 @@ class Api:
 
 
 class PillApi:
-    """JS bridge for the floating pill — deliberately separate from Api so
+    """JS bridge for the floating pill â€” deliberately separate from Api so
     the always-on-top HUD cannot reach history, settings or the API key."""
 
     def __init__(self, app):
@@ -1665,10 +1665,10 @@ class DialFlow:
             lambda i, n: self.engine._worker_state("transcribing", f"{i}/{n}"))
         if not text:
             # re-push the entry so the feed row (and its Retry button)
-            # renders back out of its 'Retrying…' state
+            # renders back out of its 'Retryingâ€¦' state
             self._js(self.main_win,
                      f"app.updateEntry({json.dumps(e, ensure_ascii=False)})")
-            self.engine._worker_state("error", "Retry failed — see app.log")
+            self.engine._worker_state("error", "Retry failed â€” see app.log")
             return
         raw = text
         cleaned = False
@@ -1737,12 +1737,12 @@ class DialFlow:
             self._update_sha = (asset.get("digest") or "").split("sha256:")[-1]
             logging.info("update available: %s", tag)
             self._js(self.main_win, f"app.updateAvailable({json.dumps(tag)})")
-            # toast once per version — the banner is invisible when the app
+            # toast once per version â€” the banner is invisible when the app
             # sits in the tray, which is where it spends most of its life
             if getattr(self, "_notified_tag", None) != tag:
                 self._notified_tag = tag
                 self._notify(f"Dial Flow {tag} is ready",
-                             "Open Dial Flow and hit Update now — it installs "
+                             "Open Dial Flow and hit Update now â€” it installs "
                              "itself and restarts.")
             return {"status": "available", "tag": tag, "version": APP_VERSION}
         except Exception:
@@ -1769,14 +1769,14 @@ class DialFlow:
                              f"You're on {APP_VERSION}, the latest version.")
             elif res.get("status") == "error":
                 self._notify("Couldn't check for updates",
-                             "No connection to GitHub — see app.log.")
+                             "No connection to GitHub â€” see app.log.")
         threading.Thread(target=run, daemon=True).start()
 
     def do_update(self):
         if not getattr(self, "_update_url", None):
             return {"ok": False, "reason": "no update"}
         if not getattr(sys, "frozen", False):
-            # running from source — swapping sys.executable would clobber
+            # running from source â€” swapping sys.executable would clobber
             # the Python interpreter itself
             return {"ok": False, "reason": "dev"}
         threading.Thread(target=self._update_worker, daemon=True).start()
@@ -1836,13 +1836,13 @@ class DialFlow:
                 logging.error("update aborted: %s", why)
                 self._js(self.main_win,
                          f"app.updateState('failed', {json.dumps(why)})")
-                self._notify("Update failed — nothing was changed",
+                self._notify("Update failed â€” nothing was changed",
                              f"{why}. Dial Flow {APP_VERSION} is still "
                              "installed; try again later.")
                 return
             cur = sys.executable
             bat = os.path.join(CONFIG_DIR, "update.bat")
-            # The swap races this process's own exit — Windows keeps the exe
+            # The swap races this process's own exit â€” Windows keeps the exe
             # locked until every thread is gone, so retry for ~45s rather
             # than failing once and silently relaunching the OLD build.
             #
@@ -1854,7 +1854,7 @@ class DialFlow:
             # start at all, .prev is a working build to fall back to.
             prev = os.path.join(os.path.dirname(cur), "DialFlow_prev.exe")
             # Paths go in through the ENVIRONMENT, never interpolated into
-            # the script: a user profile like C:\Users\محمد cannot be encoded
+            # the script: a user profile like C:\Users\Ù…Ø­Ù…Ø¯ cannot be encoded
             # in the ASCII/OEM codepage cmd.exe reads .bat files in, and the
             # write raised UnicodeEncodeError AFTER the whole 34MB download.
             with open(bat, "w", encoding="ascii") as f:
@@ -1891,13 +1891,13 @@ class DialFlow:
         except Exception:
             logging.exception("self-update failed")
             self._js(self.main_win, "app.updateState('failed')")
-            self._notify("Update failed — nothing was changed",
+            self._notify("Update failed â€” nothing was changed",
                          f"Dial Flow {APP_VERSION} is still installed.")
 
     # ---------- engine wiring ----------
 
     def _last_text(self):
-        """Most recent thing actually pasted — what refine acts on."""
+        """Most recent thing actually pasted â€” what refine acts on."""
         with self._hist_lock:
             for e in reversed(self.history):
                 if e.get("text") and not e.get("failed"):
@@ -1916,7 +1916,7 @@ class DialFlow:
                 "ts": t0, "lang": self.engine.language, "text": "",
                 "secs": round(len(audio) / SAMPLE_RATE, 1), "words": 0,
                 "latency": 0, "cleaned": False, "raw": "", "audio": name,
-                "app": "general", "failed": "Cancelled — audio kept",
+                "app": "general", "failed": "Cancelled â€” audio kept",
             })
         except Exception:
             logging.exception("keeping cancelled take failed")
@@ -1960,7 +1960,7 @@ class DialFlow:
         keyboard.add_hotkey(lk, self._debounced(self.engine.toggle_language),
                             suppress=False)
         if ck and ck == rk:
-            logging.warning("command key %s collides with record key — "
+            logging.warning("command key %s collides with record key â€” "
                             "command mode is unavailable", ck)
             self._js(self.main_win, "app.keyClash(true)")
         else:
@@ -1969,7 +1969,7 @@ class DialFlow:
     @staticmethod
     def _debounced(fn, gap=0.4):
         """Windows repeats KEY_DOWN while a key is held, and keyboard's
-        hotkey handler fires on every repeat — so resting on F9 toggled
+        hotkey handler fires on every repeat â€” so resting on F9 toggled
         recording on/off dozens of times. Ignore repeats inside `gap`."""
         state = {"t": 0.0}
 
@@ -2012,7 +2012,7 @@ class DialFlow:
         u32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want)
         if u32.IsWindowVisible(hwnd):
             u32.ShowWindow(hwnd, 0)   # SW_HIDE
-            u32.ShowWindow(hwnd, 8)   # SW_SHOWNA — visible, never activated
+            u32.ShowWindow(hwnd, 8)   # SW_SHOWNA â€” visible, never activated
         logging.info("pill ex-style 0x%08X -> 0x%08X", ex, want)
 
     def _hide_pill_from_taskbar(self):
@@ -2031,7 +2031,7 @@ class DialFlow:
             logging.debug("pre-show pill ex-style unavailable", exc_info=True)
 
     def _round_pill(self, attempt=0):
-        """Round the pill via the DWM compositor — GDI window regions are
+        """Round the pill via the DWM compositor â€” GDI window regions are
         ignored by WebView2's composited rendering, but DWM corner preference
         (the API behind every Win11 app's rounded corners) always applies.
         Must run after the first show(); hidden windows have no native form."""
@@ -2043,13 +2043,13 @@ class DialFlow:
             # DWM must do the rounding: the window is OPAQUE (background_color
             # =PILL_BG, never transparent=True) and pill.html paints html with
             # the same colour, so a CSS border-radius only stops BODY painting
-            # its gradient in the corner — the pixel underneath stays #171320.
+            # its gradient in the corner â€” the pixel underneath stays #171320.
             # On a light wallpaper that reads as a hard-cornered dark ear.
             # Only DWM actually clips the window so the desktop shows through.
             corner = ctypes.c_int(3)  # DWMWCP_ROUNDSMALL
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 phwnd, 33, ctypes.byref(corner), 4)
-            # hide the OS border by painting it the pill's own background —
+            # hide the OS border by painting it the pill's own background â€”
             # the DWMWA_COLOR_NONE sentinel renders as a LITERAL near-white
             # color on some builds (that was the ghost capsule around the
             # bubble). The design's hairline edge is drawn in CSS.
@@ -2058,7 +2058,7 @@ class DialFlow:
                 phwnd, 34, ctypes.byref(border), 4)
             # HUD behavior: WS_EX_NOACTIVATE so showing the pill can never
             # steal focus from the field the user is dictating into, and
-            # WS_EX_TOOLWINDOW so it is NOT a taskbar/alt-tab entry — without
+            # WS_EX_TOOLWINDOW so it is NOT a taskbar/alt-tab entry â€” without
             # it the bubble reads as a second app window, which is exactly
             # the "it's a whole separate tab" complaint.
             self._apply_pill_exstyle(phwnd)
@@ -2067,10 +2067,10 @@ class DialFlow:
             # WS_EX_APPWINDOW when the window is re-shown
             self._apply_pill_exstyle(phwnd)
             try:
-                # dark form backing — kills the white fringe that peeks out
+                # dark form backing â€” kills the white fringe that peeks out
                 # around the web content at tiny sizes / during resizes.
                 # NB: the assembly must be referenced before the namespace
-                # import works under pythonnet — a bare import fails silently.
+                # import works under pythonnet â€” a bare import fails silently.
                 import clr
                 clr.AddReference("System.Drawing")
                 import System.Drawing
@@ -2088,7 +2088,7 @@ class DialFlow:
 
     @staticmethod
     def _work_area():
-        """Work rect (l, t, r, b) of the monitor under the cursor — excludes
+        """Work rect (l, t, r, b) of the monitor under the cursor â€” excludes
         the taskbar, and follows the user across monitors."""
         class POINT(ctypes.Structure):
             _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
@@ -2125,11 +2125,11 @@ class DialFlow:
         only: bottom-middle, left-middle, right-middle.
 
         `size` MUST be the size the pill will BE, not the one it currently
-        has — anchoring with the pre-resize size made a side-docked pill grow
+        has â€” anchoring with the pre-resize size made a side-docked pill grow
         past its edge and then jump when the follower corrected it.
 
         PILL_PAD is 0: the tab is pinned FLUSH to the edge, so the docked
-        side never moves when the box grows — every expansion happens away
+        side never moves when the box grows â€” every expansion happens away
         from the edge, which is what keeps the cursor inside the window."""
         try:
             l, t, r, b = self._work_area()
@@ -2147,7 +2147,7 @@ class DialFlow:
         """The (w, h) a given visual state occupies at a given dock."""
         vert = (dock or self.dock()) in ("left", "right")
         if target == "panel":
-            return (PANEL_W, PANEL_H)   # always horizontal — the picker needs width
+            return (PANEL_W, PANEL_H)   # always horizontal â€” the picker needs width
         if target == "hover":
             return (VHOVER_W, VHOVER_H) if vert else (HOVER_W, HOVER_H)
         if target:
@@ -2159,13 +2159,13 @@ class DialFlow:
         """A hover box must never be smaller than the box it grew from on
         EITHER axis. If it is, the window edge sweeps past the cursor, the
         webview fires mouseleave, we shrink, the cursor is inside again and
-        mouseenter fires — an infinite resize flicker with unclickable
+        mouseenter fires â€” an infinite resize flicker with unclickable
         buttons. The sizes above already satisfy this; this is the guard
         that keeps a future size tweak from silently reintroducing it."""
         return (max(end[0], start[0]), max(end[1], start[1]))
 
     def _snap_pos(self, x, y, w, h):
-        """Nearest of the three docks for a window the user just dropped —
+        """Nearest of the three docks for a window the user just dropped â€”
         whichever edge its centre is closest to."""
         try:
             l, t, r, b = self._work_area()
@@ -2244,7 +2244,7 @@ class DialFlow:
                 self._js(self.pill_win, f"app.pos({json.dumps(pos)})")
                 if changed:
                     # dropping on a different edge changes ORIENTATION, so the
-                    # box has to be rebuilt at the new size — sliding the old
+                    # box has to be rebuilt at the new size â€” sliding the old
                     # shape over left a wide bar lying across a side edge.
                     # No early return: `finally` runs regardless, and for a
                     # left<->right drop the size is unchanged so _animate_pill
@@ -2269,7 +2269,7 @@ class DialFlow:
     def _travel_path(self, src, dst, size):
         """Top-left waypoints for a trip from one docked edge to another,
         hugging the work area the whole way. The pill never cuts across the
-        screen — it retracts to a nub, runs ALONG the edges through the
+        screen â€” it retracts to a nub, runs ALONG the edges through the
         corner between them, and rises at the destination. Left<->right goes
         the long way round the bottom, which is the only route that stays on
         an edge."""
@@ -2286,14 +2286,14 @@ class DialFlow:
         return [edge[src]] + corners.get((src, dst), []) + [edge[dst]]
 
     def _travel_pill(self, pos):
-        """Retract → run along the edge → rise at the new dock. The old
+        """Retract â†’ run along the edge â†’ rise at the new dock. The old
         behaviour swapped geometry in one frame, so a dock change from the
         picker just teleported."""
         src = self.dock()
         nub = (16, 16)
         # Commit the dock BEFORE the trip. The loops below use explicit path
         # coordinates and the captured `src`, so nothing here needs the old
-        # value — but any _animate_pill that starts mid-trip (a recording, a
+        # value â€” but any _animate_pill that starts mid-trip (a recording, a
         # hover) then anchors at the DESTINATION edge instead of materialising
         # on the one we are leaving.
         self.settings["pill_pos"] = pos
@@ -2388,7 +2388,7 @@ class DialFlow:
         self._show_main()
 
     def _busy(self):
-        """Any state that owns the expanded pill — including the failure
+        """Any state that owns the expanded pill â€” including the failure
         hold, which a hover-out used to shrink out from under."""
         return (getattr(self, "_pill_failing", False)
                 or getattr(self, "_pill_processing", False)
@@ -2398,7 +2398,7 @@ class DialFlow:
         """Open/close the bigger popup that houses the dock picker."""
         self._panel_open = bool(open_)
         if open_:
-            # The panel takes the cursor from hover — mirror the JS, which
+            # The panel takes the cursor from hover â€” mirror the JS, which
             # already does `if(on)hovering=false`. Without this Python still
             # believed it was hovered on close and settled at the hover size
             # while the DOM was painting the plain tab.
@@ -2409,7 +2409,7 @@ class DialFlow:
 
     def pill_hover_in(self):
         """Grow so the label and controls have room. This has to work DURING
-        a recording too — cancelling mid-take is the whole point of the
+        a recording too â€” cancelling mid-take is the whole point of the
         button."""
         if getattr(self, "_pill_dragging", False) or \
                 getattr(self, "_panel_open", False):
@@ -2433,7 +2433,7 @@ class DialFlow:
 
     def _pill_follower(self):
         """Keeps the pill on the monitor the cursor is on. It must NOT run
-        while the user is dragging — it was re-anchoring every 0.35s, which
+        while the user is dragging â€” it was re-anchoring every 0.35s, which
         teleported the pill back mid-drag and meant the drop position read
         as unchanged, so it never docked anywhere new."""
         while not self.quitting:
@@ -2446,7 +2446,7 @@ class DialFlow:
     def _set_pill_corners(self, small):
         """DWM corner preference per state: ROUNDSMALL (~4px) for the resting
         tab, ROUND (~8px) for the expanded states. DWM is what genuinely clips
-        the window — the CSS radius alone cannot, because the window is opaque
+        the window â€” the CSS radius alone cannot, because the window is opaque
         (see _round_pill). The CSS radii are matched to these so the painted
         arc sits ON the clipped arc instead of inside it.
 
@@ -2467,7 +2467,7 @@ class DialFlow:
     def _animate_pill(self, expand):
         """Eased window-size animation between the idle bubble and the full
         pill, anchored to its docked corner so it grows in place. Drives raw
-        SetWindowPos on the cached hwnd — pywebview's resize/move marshal
+        SetWindowPos on the cached hwnd â€” pywebview's resize/move marshal
         through the UI thread and stutter, especially right after show().
 
         expand: True -> recording pill, False -> idle bubble, "hover" ->
@@ -2553,7 +2553,7 @@ class DialFlow:
             self._pill_wh = end
             # reconcile: the native SetWindowPos path resizes the form behind
             # WinForms' back, and a same-size framework resize is skipped as a
-            # no-op — so jiggle by 1px first to force a real layout pass that
+            # no-op â€” so jiggle by 1px first to force a real layout pass that
             # snaps the WebView2 content to the final bounds
             try:
                 a = self._pill_anchor(end) or anchor
@@ -2572,7 +2572,7 @@ class DialFlow:
                 self._pill_animating = False
 
     def _pill_to_idle(self):
-        """Direct settle (no success flash — error, toggle, etc.): empty the
+        """Direct settle (no success flash â€” error, toggle, etc.): empty the
         frame, shrink, then breathe the idle core back in."""
         if self.pill_win is None:
             return
@@ -2580,14 +2580,14 @@ class DialFlow:
                          daemon=True).start()
 
     def _pill_settle(self, flash):
-        """Design T3 timeline: flash 0-300ms → contents empty while the
-        window shrinks 300-500ms → idle core fades in and breathes."""
+        """Design T3 timeline: flash 0-300ms â†’ contents empty while the
+        window shrinks 300-500ms â†’ idle core fades in and breathes."""
         try:
             if flash:
                 self._js(self.pill_win, "app.done()")
                 time.sleep(0.30)
             if self.engine is not None and self.engine.recording:
-                return  # a new recording started mid-flash — leave the pill
+                return  # a new recording started mid-flash â€” leave the pill
             if self.settings.get("idle_pill", True):
                 self._js(self.pill_win, "app.mode('')")  # empty while moving
                 self._pill_visible = True
@@ -2606,11 +2606,11 @@ class DialFlow:
         if not self.settings.get("idle_pill", True):
             return
         if self._busy():
-            return  # a take is live — do not shrink its HUD to a bubble
+            return  # a take is live â€” do not shrink its HUD to a bubble
         try:
             prev_fg = ctypes.windll.user32.GetForegroundWindow()
             self.pill_win.show()
-            # size for the dock we are ACTUALLY on — hard-coding the horizontal
+            # size for the dock we are ACTUALLY on â€” hard-coding the horizontal
             # MINI started a side-docked tab as a 76x16 bar lying across the
             # edge, with the upright 34px core clipped inside 16px of height
             mw, mh = self._pill_size_for(False)
@@ -2619,7 +2619,7 @@ class DialFlow:
             self._js(self.pill_win, "app.mode('mini')")
             self._js(self.pill_win,
                      f"app.reckey({json.dumps(self.settings['record_key'])})")
-            # self.dock() — NOT the raw setting. The stored default was the
+            # self.dock() â€” NOT the raw setting. The stored default was the
             # stale "bottom-center", which is not one of DOCKS, so the JS
             # stamped an unstyled dock-bottom-center class and the tab lost
             # its edge radius entirely.
@@ -2658,7 +2658,7 @@ class DialFlow:
                     self._pill_processing = True
                     self._js(self.pill_win, "app.mode('processing')")
                 elif state == "error":
-                    # a failed take must be visible without opening the app —
+                    # a failed take must be visible without opening the app â€”
                     # the pill holds the failure until it is acknowledged or
                     # the next recording starts
                     self._pill_processing = False
@@ -2666,8 +2666,8 @@ class DialFlow:
                     threading.Thread(target=self._pill_fail, args=(detail,),
                                      daemon=True).start()
                 elif getattr(self, "_pill_processing", False) and state == "idle":
-                    # designed T3 exit: success flash → empty shrink → breathe.
-                    # A cancel arrives as ("idle", "Cancelled") too — it must
+                    # designed T3 exit: success flash â†’ empty shrink â†’ breathe.
+                    # A cancel arrives as ("idle", "Cancelled") too â€” it must
                     # NOT play the success flash.
                     self._pill_processing = False
                     threading.Thread(
@@ -2694,7 +2694,7 @@ class DialFlow:
         """Hold a readable failure on the pill, then settle back to idle."""
         self._pill_failing = True
         try:
-            msg = (detail or "Transcription failed").split(" — ")[0]
+            msg = (detail or "Transcription failed").split(" â€” ")[0]
             self._animate_pill(True)
             self._js(self.pill_win, f"app.failed({json.dumps(msg)})")
             for _ in range(60):          # ~6s, but yield to a new recording
@@ -2779,7 +2779,7 @@ class DialFlow:
                 pystray.MenuItem("Quit", lambda: self._shutdown()),
             )
             self.tray = pystray.Icon("DialFlow", img,
-                                     "Dial Flow — F9 to record", menu)
+                                     "Dial Flow â€” F9 to record", menu)
             threading.Thread(target=self.tray.run, daemon=True).start()
         except Exception:
             logging.exception("tray setup failed")
@@ -2802,7 +2802,7 @@ class DialFlow:
                 self.settings["_tray_tip_shown"] = True
                 self.settings.save()
                 try:
-                    self.tray.notify("Still running — hotkeys stay active. "
+                    self.tray.notify("Still running â€” hotkeys stay active. "
                                      "Right-click the tray icon to quit.",
                                      "Dial Flow")
                 except Exception:
@@ -2875,7 +2875,7 @@ class DialFlow:
                 pass
         # theme-matched titlebar + rounded pill region (best effort)
         self._apply_titlebar()
-        # pill region is applied on first show — hidden pywebview windows
+        # pill region is applied on first show â€” hidden pywebview windows
         # have no native form yet, so it can't be rounded here
 
     def run(self):
@@ -2887,9 +2887,9 @@ class DialFlow:
             background_color="#131316" if self._theme_is_dark() else "#FAFAF8")
         self.main_win.events.closing += self._on_closing
         self.pill_win = webview.create_window(
-            "Dial Flow — recording", html=PILL_HTML, js_api=PillApi(self),
+            "Dial Flow â€” recording", html=PILL_HTML, js_api=PillApi(self),
             width=PILL_W, height=PILL_H, x=sw // 2 - PILL_W // 2, y=sh - 118,
-            # override pywebview's silent 200x100 default min — it must be
+            # override pywebview's silent 200x100 default min â€” it must be
             # allowed to shrink all the way down to the idle tab. Use the
             # SMALLEST dimension across both orientations: the horizontal tab
             # is 76x16 but the upright one is 16x76, and a min width of 76
@@ -2902,8 +2902,8 @@ class DialFlow:
         # Hard exit. concurrent.futures registers an atexit hook that JOINS
         # every pool worker, so quitting mid-upload hung the tray for seconds
         # waiting on a 300s-timeout socket. Every worker here is already a
-        # daemon and nothing is deferred to exit — Settings.save() and
-        # _save_history() both write at each mutation — so there is no state
+        # daemon and nothing is deferred to exit â€” Settings.save() and
+        # _save_history() both write at each mutation â€” so there is no state
         # to lose by skipping the interpreter's shutdown dance.
         os._exit(0)
 
@@ -2912,7 +2912,7 @@ def main():
     ctypes.windll.kernel32.CreateMutexW(None, False, "DialFlow.Singleton")
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         ctypes.windll.user32.MessageBoxW(
-            None, "Dial Flow is already running — check your taskbar or "
+            None, "Dial Flow is already running â€” check your taskbar or "
                   "system tray.", "Dial Flow", 0x40)
         return
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
