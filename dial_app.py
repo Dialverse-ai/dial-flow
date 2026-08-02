@@ -1,4 +1,4 @@
-﻿"""Dial Flow â€” Arabic+English dictation with a GPU-composited web UI.
+"""Dial Flow â€” Arabic+English dictation with a GPU-composited web UI.
 
 Architecture: Python engine (recording, Cohere transcription, Flow cleanup,
 hotkeys, tray, chimes) + pywebview/WebView2 frontend (web/index.html) for
@@ -59,7 +59,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.1.0"
+APP_VERSION = "4.1.1"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls

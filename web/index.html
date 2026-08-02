@@ -144,7 +144,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @keyframes yfPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.66);opacity:.5}}
 @keyframes yfSpin{to{transform:rotate(360deg)}}
 @keyframes yfSweep{to{background-position:200% 0}}
-@keyframes cardIn{from{opacity:0;transform:perspective(1100px) translate3d(0,26px,-60px) rotateX(-9deg)}}
+/* NO 3D ANYWHERE IN THIS FILE. WebView2's GPU compositor has no defined sort
+   order for layers that share a plane inside a preserve-3d context, and it
+   dropped card CONTENTS behind the card's own paint on hover-out. Every lift
+   in this stylesheet is built from translateY / scale / box-shadow / filter /
+   opacity only — properties that composite without a 3D context and therefore
+   cannot put anything behind anything. Do not reintroduce perspective,
+   transform-style:preserve-3d, translateZ or rotateX. */
+@keyframes cardIn{from{opacity:0;transform:translateY(26px) scale(.972)}}
 @keyframes riseIn{from{opacity:0;transform:translateY(14px)}}
 @keyframes barGrow{from{transform:scaleX(0)}}
 /* the breath pulses SCALE, not opacity: state can drop at any moment, and an
@@ -563,7 +570,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   box-shadow:var(--e4);padding:6px;
   display:flex;flex-direction:column;transform-origin:top right;
   animation:menuIn .24s var(--spring) backwards}
-@keyframes menuIn{from{opacity:0;transform:perspective(700px) translateY(-8px) rotateX(-14deg) scale(.95)}}
+@keyframes menuIn{from{opacity:0;transform:translateY(-9px) scale(.95)}}
 .menu button{height:34px;display:flex;align-items:center;gap:10px;padding:0 11px;
   border-radius:9px;font-size:12.5px;color:var(--text);text-align:left;
   transition:background .16s,transform .18s var(--ease)}
@@ -579,8 +586,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 #empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;
   gap:18px;text-align:center;padding:0 60px}
 #empty.on{display:flex}
-#empty .glyph{display:flex;align-items:flex-end;gap:6px;height:44px;
-  perspective:400px;transform-style:preserve-3d}
+#empty .glyph{display:flex;align-items:flex-end;gap:6px;height:44px}
 #empty .glyph i{width:6px;border-radius:999px;background:var(--border-strong);
   box-shadow:0 6px 12px -6px rgba(var(--sh-a),.6);
   animation:emptyWave 2.4s ease-in-out infinite}
@@ -590,7 +596,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   box-shadow:0 0 20px -2px var(--accent-glow),0 8px 16px -8px var(--accent-glow)}
 #empty .glyph i:nth-child(4){height:26px;background:var(--accent-soft);animation-delay:.45s}
 #empty .glyph i:nth-child(5){height:14px;animation-delay:.6s}
-@keyframes emptyWave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.5) translateZ(14px)}}
+@keyframes emptyWave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.5)}}
 #empty h2{font-family:var(--f-display);font-weight:400;font-size:24px;letter-spacing:-.015em;
   display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px}
 #empty-key{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:32px;
@@ -607,37 +613,40 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 #empty .apps b{color:var(--text2);font-weight:700}
 
 /* ---- stats rail ---- */
-#dict-rail{width:264px;flex:none;display:flex;flex-direction:column;gap:14px;padding-top:56px;
-  perspective:1200px}
-/* same depth contract as .ins-card — .rail-stat lifts to Z=16px on hover and
-   lands back on Z=0, so the card's paint has to live behind that plane. The
-   card also carries no border of its own, so inset:0 on the paint layer is
+#dict-rail{width:264px;flex:none;display:flex;flex-direction:column;gap:14px;padding-top:56px}
+/* same depth contract as .ins-card, and the same reason: the card paints nothing
+   on its own box. ::before at z-index:0 carries fill + rim border + elevation,
+   the contents sit at z-index:1 — ORDINARY stacking, no 3D, so the two can never
+   be co-planar and the compositor has nothing to sort wrong.
+   The card carries no border of its own, so inset:0 on the paint layer is
    EXACTLY the card's rounded box: the 1px border lives on the layer that draws
    it, and nothing is ever positioned outside its own containing block. */
 .rail-card{border-radius:20px;padding:18px 19px;display:flex;flex-direction:column;
   position:relative;background:none;
-  perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
   transition:transform .45s var(--spring);
   animation:cardIn .6s .22s var(--out) backwards}
 .rail-card>*{position:relative;z-index:1}
 .rail-card::before{content:'';position:absolute;inset:0;z-index:0;
   border:1px solid transparent;border-radius:inherit;pointer-events:none;
-  transform:translateZ(-1px);
   background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
              var(--rim-grad) border-box;
   box-shadow:var(--e2);transition:box-shadow .4s var(--ease)}
-.rail-card:hover{transform:perspective(1100px) translateY(-7px) rotateX(5deg) scale(1.015)}
+.rail-card:hover{transform:translateY(-10px) scale(1.02)}
 .rail-card:hover::before{box-shadow:var(--e3),var(--sh-glow)}
 .rail-stat{display:flex;flex-direction:column;gap:3px;padding:14px 0;
-  border-bottom:1px solid var(--divider);transition:transform .45s var(--spring)}
-.rail-card:hover .rail-stat{transform:translateZ(16px)}
+  border-bottom:1px solid var(--divider)}
 /* :first-of-type never matched — .section-label is the first div in the card,
    so the top stat has been sitting 2px tight since it was written */
 .section-label+.rail-stat{padding-top:16px}
 .rail-stat:last-child{border-bottom:none;padding-bottom:2px}
+/* the numbers used to ride 16px toward the viewer on hover; a deeper cast
+   shadow reads as the same lift and cannot occlude anything */
 .rail-stat .v{font-family:var(--f-display);font-size:29px;line-height:1.05;letter-spacing:-.024em;
   font-variant-numeric:tabular-nums;
-  text-shadow:0 1px 0 var(--rim-top),0 8px 18px rgba(var(--sh-a),.16)}
+  text-shadow:0 1px 0 var(--rim-top),0 8px 18px rgba(var(--sh-a),.16);
+  transition:text-shadow .45s var(--ease)}
+.rail-card:hover .rail-stat .v{
+  text-shadow:0 1px 0 var(--rim-top),0 14px 26px rgba(var(--sh-a),.26)}
 .rail-stat .l{font-size:11px;line-height:1.45;letter-spacing:.012em;color:var(--text2)}
 .tip-card{position:relative;border-radius:16px;
   padding:14px 16px 14px 34px;font-size:11.5px;line-height:1.78;letter-spacing:.012em;
@@ -645,11 +654,10 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   background:linear-gradient(180deg,var(--tint),var(--field)) padding-box,
              var(--rim-grad-soft) border-box;
   border:1px solid transparent;box-shadow:var(--e1);
-  transform-origin:center bottom;
   transition:transform .45s var(--spring),box-shadow .4s var(--ease)}
 .tip-card::before{content:'✦';position:absolute;left:14px;top:13px;font-size:11px;
   color:var(--accent-text);opacity:.9;transition:transform .5s var(--spring)}
-.tip-card:hover{transform:perspective(900px) translateY(-4px) rotateX(4deg);box-shadow:var(--e2)}
+.tip-card:hover{transform:translateY(-5px) scale(1.012);box-shadow:var(--e2)}
 .tip-card:hover::before{transform:rotate(90deg) scale(1.15)}
 .tip-card b{color:var(--text);font-weight:600}
 
@@ -674,77 +682,81 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 #update-banner .us{font-size:11.5px;line-height:1.55;color:var(--text2);margin-top:3px}
 
 /* ===================== insights ===================== */
-#page-insights{overflow-y:auto;overflow-x:hidden;padding-bottom:28px;perspective:1400px}
+#page-insights{overflow-y:auto;overflow-x:hidden;padding-bottom:28px}
 .ins-grid{display:flex;gap:14px;margin-top:18px;flex:none}
 /* ---------------------------------------------------------------------------
-   THE CARD PAINTS NOTHING ITSELF.
-   .ins-card is a preserve-3d context and its contents lift on translateZ, so
-   anything the card drew on its own box sat at exactly Z=0 — the plane the
-   contents land back on when the pointer leaves. WebView2's compositor has no
-   defined order for co-planar layers and sorted the text BEHIND the card
-   background: the card stayed, its contents vanished.
-   Fixed by giving every layer its own depth, so no two are ever co-planar:
-       ::before  Z = -1px    fill + rim border + elevation
-       ::after   Z = -0.5px  accent rule + hover wash
-       contents  Z =  0      (and up to +40px on hover)
-   The contents can now return to Z=0 at any point in the transition, be caught
-   mid-flight, or re-enter instantly, and they are still strictly in front.
+   THE CARD PAINTS NOTHING ITSELF, AND THERE IS NO 3D CONTEXT.
+
+   The bug: contents stopped being painted after hover-out while the DOM and
+   computed styles were perfectly correct — a compositing failure, not a style
+   one. The mechanism was transform-style:preserve-3d + perspective on the card
+   with children that animated translateZ. WebView2's compositor decides layer
+   order inside a 3D context by depth, and on the way back to Z=0 the contents
+   became co-planar with the card's own paint; it sorted them behind it and
+   stopped drawing them. Two earlier fixes only re-shuffled the Z offsets
+   (paint to -1px, then the rule to -0.5px) — the 3D context was still there,
+   so the compositor still owned the ordering. It had to go entirely.
+
+   Now: NO perspective, NO preserve-3d, NO translateZ, NO rotateX. Layer order
+   is ORDINARY 2D stacking, which the compositor cannot reorder:
+       ::before  z-index:0  fill + rim border + elevation
+       ::after   z-index:0  accent rule + hover wash  (later in paint order)
+       contents  z-index:1  strictly in front, always, in every frame
+   The lift is rebuilt from translateY + scale + box-shadow + filter only.
+   These compose in 2D and cannot put anything behind anything.
 
    THE CARD ITSELF CARRIES NO BORDER, so inset:0 on both layers is EXACTLY the
    card's rounded box: the 1px border lives on the layer that paints it, and no
-   layer is ever positioned outside its own containing block. That is what fixes
-   the escaping accent rule — it used to ride the same layer as the rim border,
-   which sat at inset:-1px, so under the hover tilt (rotateX(6deg) scale(1.018)
-   through perspective:900px) the overhang projected into view and the rule read
-   as floating 1px proud of the card with its ends past the corner curve.
-   The rule now has its own layer, clipped to that layer's PADDING edge — a
-   curve the engine derives from the real radius minus the real border, so it
-   can never be wider or higher than the card. It still grows on background-size
-   rather than scaleX, because both layers own a translateZ that must not change.
+   layer is ever positioned outside its own containing block — that is what
+   keeps the accent rule from escaping the rounded edge. The rule is clipped to
+   its layer's PADDING edge, a curve the engine derives from the real radius
+   minus the real border, so it can never be wider or higher than the card.
+   It grows on background-size rather than scaleX so the layer never needs a
+   transform of its own.
    --------------------------------------------------------------------------- */
 .ins-card{border-radius:20px;padding:17px 19px 19px;display:flex;flex-direction:column;gap:3px;
   flex:1;position:relative;background:none;
-  perspective:900px;transform-style:preserve-3d;transform-origin:center bottom;
   transition:transform .45s var(--spring)}
 .ins-card>*{position:relative;z-index:1}
 .ins-card::before{content:'';position:absolute;inset:0;z-index:0;
   border:1px solid transparent;border-radius:inherit;pointer-events:none;
-  transform:translateZ(-1px);
   background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
              var(--rim-grad) border-box;
   box-shadow:var(--e2);
   transition:box-shadow .4s var(--ease)}
 .ins-card::after{content:'';position:absolute;inset:0;z-index:0;
   border:1px solid transparent;border-radius:inherit;pointer-events:none;
-  opacity:0;transform:translateZ(-.5px);
+  opacity:0;
   background:linear-gradient(90deg,var(--accent),var(--accent2))
                top left/0% 2px no-repeat padding-box,
              radial-gradient(75% 90% at 88% 4%,var(--accent-wash),transparent 66%) border-box;
   transition:opacity .4s ease,background-size .5s var(--out)}
-.ins-card:hover{transform:perspective(1100px) translateY(-8px) rotateX(6deg) scale(1.018)}
+/* a taller rise + the e3/glow shadow pair buys back every bit of depth the
+   parallax gave, with none of the layerisation */
+.ins-card:hover{transform:translateY(-11px) scale(1.022)}
 .ins-card:hover::before{box-shadow:var(--e3),var(--sh-glow)}
 .ins-card:hover::after{opacity:1;background-size:100% 2px,auto}
 .ins-card .k{display:inline-flex;align-items:center;gap:9px;font-size:9.5px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;color:var(--muted);white-space:nowrap;
-  transition:transform .45s var(--spring)}
+  transition:color .35s ease}
 .ins-card .k::before{content:'';width:14px;height:2px;border-radius:2px;flex:none;
   background:var(--grad-90);opacity:.9;transition:width .35s var(--out)}
 .ins-card:hover .k::before{width:24px}
-.ins-card:hover .k{transform:translateZ(18px)}
+.ins-card:hover .k{color:var(--text2)}
+/* the value used to ride 34px toward the viewer; a deeper cast shadow reads as
+   the same lift and stays in the card's own 2D layer */
 .ins-card .v{font-family:var(--f-display);font-size:38px;line-height:1.04;letter-spacing:-.028em;
   font-variant-numeric:tabular-nums;margin-top:8px;
   text-shadow:0 1px 0 var(--rim-top),0 12px 26px rgba(var(--sh-a),.18);
-  transition:transform .45s var(--spring)}
-.ins-card:hover .v{transform:translateZ(34px)}
+  transition:text-shadow .45s var(--ease)}
+.ins-card:hover .v{text-shadow:0 1px 0 var(--rim-top),0 20px 36px rgba(var(--sh-a),.30)}
 .ins-card .v small{font-size:14px;letter-spacing:.012em;color:var(--text2);
   font-family:var(--f-display)}
-.ins-card .s{font-size:11px;line-height:1.55;letter-spacing:.012em;color:var(--text2);margin-top:4px;
-  transition:transform .45s var(--spring)}
-.ins-card:hover .s{transform:translateZ(12px)}
+.ins-card .s{font-size:11px;line-height:1.55;letter-spacing:.012em;color:var(--text2);margin-top:4px}
 .ins-card .orn{position:absolute;right:8px;bottom:2px;z-index:0;font-size:62px;line-height:1;
   color:var(--accent);opacity:.08;pointer-events:none;
   transition:opacity .4s ease,transform .55s var(--spring)}
-.ins-card:hover .orn{opacity:.16;transform:rotate(-12deg) scale(1.08) translateZ(6px)}
+.ins-card:hover .orn{opacity:.16;transform:rotate(-12deg) scale(1.08)}
 /* Cards deal themselves in each time the page opens. The stagger is capped at
    220ms end to end: fill-mode backwards holds a card at opacity:0 for the whole
    of its delay, so a long tail meant flipping between pages quickly showed a
@@ -764,8 +776,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .gauge{width:84px;height:84px;flex:none;
   filter:drop-shadow(0 8px 16px rgba(var(--sh-a),.30));
   transition:transform .5s var(--spring),filter .4s ease}
-.speed-card:hover .gauge{transform:translateZ(40px) rotate(-4deg);
-  filter:drop-shadow(0 14px 26px rgba(var(--sh-a),.42))}
+.speed-card:hover .gauge{transform:translateY(-4px) scale(1.13) rotate(-4deg);
+  filter:drop-shadow(0 16px 28px rgba(var(--sh-a),.42))}
 .gauge-well{stroke:var(--border);stroke-width:1}
 .gauge-track{stroke:var(--tint)}
 .gauge-shade{stroke:rgba(0,0,0,.13);stroke-width:1.2}
@@ -823,18 +835,21 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 #heat-months{display:flex;height:14px;line-height:14px;font-size:9px;font-weight:700;
   letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .heat-grid{display:grid;grid-template-rows:repeat(7,var(--cell));grid-auto-flow:column;
-  grid-auto-columns:var(--cell);gap:var(--cellgap);perspective:1200px}
+  grid-auto-columns:var(--cell);gap:var(--cellgap)}
 .heat-grid i{width:var(--cell);height:var(--cell);border-radius:4px;position:relative;z-index:0;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
   transition:transform .22s var(--spring),box-shadow .22s ease}
-/* the hovered cell rises hardest; its 4 orthogonal neighbours follow it up */
-.heat-grid i:hover{z-index:3;transform:translateZ(26px) scale(1.5);
+/* the hovered cell rises hardest; its 4 orthogonal neighbours follow it up.
+   Scale + shadow only — the depth used to come from translateZ under a
+   perspective on .heat-grid, which is the same layerisation that lost the
+   card contents. z-index does the ordering now. */
+.heat-grid i:hover{z-index:3;transform:scale(1.5);
   box-shadow:0 0 0 1.5px var(--surface),0 10px 18px -6px rgba(var(--sh-a),.75)}
 .heat-grid i:hover + i,
 .heat-grid i:has(+ i:hover),
 .heat-grid i:hover + i + i + i + i + i + i + i,
 .heat-grid i:has(+ i + i + i + i + i + i + i:hover){z-index:2;
-  transform:translateZ(12px) scale(1.22);
+  transform:scale(1.22);
   box-shadow:0 5px 11px -5px rgba(var(--sh-a),.6)}
 /* days past the end of the month grid are painted transparent — without this
    they still answered the cursor, lifting an invisible tile and its shadow */
@@ -868,7 +883,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
   font-variant-numeric:tabular-nums}
 
 /* ===================== dictionary + snippets ===================== */
-#page-dictionary{overflow-y:auto;overflow-x:hidden;perspective:1400px}
+#page-dictionary{overflow-y:auto;overflow-x:hidden}
 .dic-wrap{max-width:760px;display:flex;flex-direction:column}
 .dic-hero{position:relative;overflow:hidden;margin-top:18px;border-radius:20px;
   padding:21px 23px;display:flex;align-items:center;justify-content:space-between;gap:20px;
@@ -949,7 +964,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:21px
 .snip-edit .se-acts{display:flex;gap:8px;justify-content:flex-end}
 
 /* ===================== settings ===================== */
-#page-settings{overflow-y:auto;overflow-x:hidden;perspective:1400px}
+#page-settings{overflow-y:auto;overflow-x:hidden}
 .set-wrap{max-width:722px;display:flex;flex-direction:column;padding-bottom:8px}
 .set-card{margin-top:10px;border-radius:20px;padding:0 18px;
   background:linear-gradient(180deg,var(--surface-hi),var(--surface)) padding-box,
@@ -1000,8 +1015,10 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
   .heat-grid i:hover + i + i + i + i + i + i + i,
   .heat-grid i:has(+ i + i + i + i + i + i + i:hover),
   .btn-primary:hover,.btn-2nd:hover,.copy-btn:hover,.icon-btn:hover,.nav-item:hover,
-  .speed-card:hover .gauge,.streak-card:hover .flame,.rail-card:hover .rail-stat,
-  .ins-card:hover .k,.ins-card:hover .v,.ins-card:hover .s,.ins-card:hover .orn,
+  .btn-ghost:hover,.dots-btn:hover,.row.menu-open .dots-btn,
+  .speed-card:hover .gauge,.streak-card:hover .flame,.ins-card:hover .orn,
+  .tip-card:hover::before,.row:hover .badge,
+  .row:hover::after,.row.menu-open::after,.nav-item:hover svg,
   select:hover,.status-card:has(#spill.recording){transform:none}
   body::before{animation:none}
 }
