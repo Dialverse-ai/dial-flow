@@ -59,7 +59,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.1.2"
+APP_VERSION = "4.1.3"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -86,10 +86,15 @@ MODEL = "cohere-transcribe-arabic-07-2026"
 CLEANUP_MODELS = ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"]
 SAMPLE_RATE = 16000
 MAX_SECONDS = 900
-# 16kHz PCM16 is ~32KB/s, so one request per 45s stays around 1.4MB. Bigger
-# single uploads time out mid-write on a slow uplink (field failures at
-# 145s/4.5MB and 214s/6.7MB, 2026-07-31).
-CHUNK_SECONDS = 45
+# 16kHz PCM16 is ~32KB/s, so one request per 30s is ~0.96MB. Bigger single
+# uploads stall mid-write on a slow uplink (field failures at 145s/4.5MB and
+# 214s/6.7MB on 2026-07-31, then 117s/3.6MB on 2026-08-03).
+#
+# 45s (~1.44MB) was measured failing on the live link while 0.96MB went
+# through in 12.2s under the SAME conditions, so this is the empirical
+# margin, not a guess. Paired with the connect-timeout fix in _asr; either
+# alone is not enough.
+CHUNK_SECONDS = 30
 ENV_FILE = os.path.join(CONFIG_DIR, ".env")
 ICON_FILE = os.path.join(RESOURCE_DIR, "app.ico")
 UI_FILE = os.path.join(RESOURCE_DIR, "web", "index.html")
@@ -843,10 +848,22 @@ class Engine:
                     data=data,
                     files={"file": ("audio.wav", io.BytesIO(wav_bytes),
                                     "audio/wav")},
-                    # generous WRITE budget: the socket timeout also governs
-                    # send(), and a slow uplink needs time to push even a
-                    # chunk-sized body
-                    timeout=(10, 300),
+                    # (connect, read) — and the FIRST value is what actually
+                    # matters here. urllib3 leaves the connect timeout as the
+                    # socket timeout while the request BODY is being sent, so
+                    # it caps how long a single send() may block, not just
+                    # connection setup. On a congested uplink the TCP window
+                    # closes and one send() on a chunk-sized body blocks well
+                    # past 10s -> "write operation timed out", while the 300s
+                    # read timeout never comes into play at all.
+                    #
+                    # Measured 2026-08-03 on the same link, same 1.44MB body:
+                    #   connect=10  -> FAILED at 10.5s
+                    #   connect=60  -> OK in 20.1s
+                    #   connect=120 -> OK in 17.2s
+                    # A real connection error still fails fast (TCP refuses or
+                    # DNS fails immediately), so a high value costs nothing.
+                    timeout=(90, 300),
                 )
             except requests.RequestException:
                 logging.exception("asr attempt %s/4 failed", attempt + 1)
