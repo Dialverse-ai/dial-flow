@@ -59,7 +59,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.1.1"
+APP_VERSION = "4.1.2"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -886,27 +886,29 @@ class Engine:
             text, err = self._asr(buf.getvalue(), lang)
             return (None, err) if err else ((text or "").strip(), None)
 
-        # Chunks are independent and the results are simply joined in order,
-        # so running them SEQUENTIALLY was pure dead time: a 3-minute take
-        # paid four full round-trips end to end. Fire them together and keep
-        # the ordering by index.
-        def one(i_span):
-            i, (a, b) = i_span
+        # UPLOAD ONE CHUNK AT A TIME. Do not "optimise" this into a thread
+        # pool — that was tried and it reintroduced the exact bug chunking
+        # exists to prevent.
+        #
+        # Chunking is not about request count, it is about how many BYTES are
+        # in flight on a narrow uplink. Firing N chunks together puts the
+        # whole take on the wire again, just split across N sockets that share
+        # the same upstream bandwidth, so every one of them crawls and they
+        # all hit the write timeout together. Field failure 2026-08-03: a
+        # 117s take split into 3 chunks, all 4 attempts of all 3 chunks timing
+        # out in lockstep (identical log timestamps). The same audio, same
+        # network, uploaded sequentially minutes later: every chunk succeeded
+        # in 6-14 seconds.
+        #
+        # Sequential is also strictly better on failure: a chunk that dies
+        # does not drag its siblings down with it.
+        parts, failed = [], 0
+        for i, (a, b) in enumerate(spans):
+            if on_progress:
+                on_progress(i + 1, len(spans))
             buf = io.BytesIO()
             sf.write(buf, audio[a:b], SAMPLE_RATE, format="WAV", subtype="PCM_16")
-            return i, self._asr(buf.getvalue(), lang)
-
-        done = 0
-        results = {}
-        with cf.ThreadPoolExecutor(max_workers=min(4, len(spans))) as pool:
-            for i, (text, err) in pool.map(one, list(enumerate(spans))):
-                results[i] = (text, err)
-                done += 1
-                if on_progress:
-                    on_progress(done, len(spans))
-        parts, failed = [], 0
-        for i in range(len(spans)):
-            text, err = results.get(i, (None, "missing"))
+            text, err = self._asr(buf.getvalue(), lang)
             if err:
                 logging.error("chunk %s/%s failed: %s", i + 1, len(spans), err)
                 failed += 1
