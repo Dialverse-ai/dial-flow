@@ -632,12 +632,17 @@ function raf(){
      Python — silence collapses them to a flat 2px line, speech lifts them
      with a slight per-bar wobble (wobble scales with the level too, so a
      quiet room never shimmies) */
-  const target=Math.min(1,lvl*9);
-  disp+=(target-disp)*(target>disp?0.4:0.15);
+  /* `lvl` already arrives as a perceptual 0..1 from the engine, which
+     auto-ranges it to this microphone (see Engine._meter_level). It used to
+     be raw RMS scaled by 9 here — on a quiet mic that put EVERY voiced block
+     under 0.10, below the old 0.16 gate, so the bar showed silence the whole
+     time he was speaking. Do not reintroduce a multiplier. */
+  const target=Math.max(0,Math.min(1,lvl));
+  disp+=(target-disp)*(target>disp?0.5:0.12);
   root.style.setProperty('--lv',disp.toFixed(3));
   /* hysteresis, so a voice sitting on the threshold does not strobe the
      whole slab between its heard and unheard looks */
-  if(hearing?disp<0.09:disp>0.16){hearing=!hearing;cl.toggle('hearing',hearing);}
+  if(hearing?disp<0.06:disp>0.12){hearing=!hearing;cl.toggle('hearing',hearing);}
   const t=performance.now()/1000;
   bars.forEach((b,i)=>{
    const wig=0.7+0.3*Math.sin(t*9+i*1.7);

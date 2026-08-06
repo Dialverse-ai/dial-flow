@@ -1406,7 +1406,9 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 const meterBars = Array.from($('meter').children);
 const IDLE_H = [6,10,14,8,12,7,10];
 function raf(){
-  const target = state === 'recording' ? Math.min(1, level * 9) : 0;
+  // `level` is already a perceptual 0..1 auto-ranged to the mic by the
+  // engine; the old `* 9` on raw RMS pinned a quiet mic near zero.
+  const target = state === 'recording' ? Math.max(0, Math.min(1, level)) : 0;
   dispLevel += (target - dispLevel) * (target > dispLevel ? 0.35 : 0.08);
   const t = performance.now() / 1000;
   meterBars.forEach((b, i) => {

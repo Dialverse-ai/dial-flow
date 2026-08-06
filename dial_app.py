@@ -13,6 +13,7 @@ import io
 import json
 import concurrent.futures as cf
 import logging
+import math
 import os
 import queue
 import re
@@ -59,7 +60,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.1.3"
+APP_VERSION = "4.2.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -624,7 +625,42 @@ class Engine:
     def _audio_callback(self, indata, frames_count, time_info, status):
         if self.recording:
             self.frames.put(indata.copy())
-            self.level = float(np.sqrt(np.mean(indata ** 2)))
+            self.level = self._meter_level(
+                float(np.sqrt(np.mean(indata ** 2))))
+
+    # Meter calibration. Raw RMS is a terrible thing to drive a meter with:
+    # loudness is perceived logarithmically, and mic gain varies enormously
+    # between machines. Measured across Mazen's real takes his voice sits at
+    # RMS 0.002-0.011 (median -49 dBFS), so the old `min(1, rms*9)` mapping
+    # put ALL of his speech under 0.10 and every voiced block fell below the
+    # 0.16 "hearing" gate — the bar showed silence while he was talking.
+    #
+    # So: work in dB, and auto-calibrate the top of the scale to whatever
+    # this mic actually delivers. A quiet mic and a hot mic both end up
+    # using the full range.
+    METER_FLOOR_DB = -62.0    # below this is treated as silence
+    # 18 dB is about the working range of conversational speech. Wider (26)
+    # was measured pushing his whole voice into the top of the scale — every
+    # block reading 0.6-0.9, which is as uninformative as reading zero. At 18
+    # his quiet blocks land near 0.25 and his louder ones near 0.8, so the
+    # meter actually tracks how he is speaking.
+    METER_RANGE_DB = 18.0
+    METER_CEIL_MIN = -46.0    # never let the ceiling collapse onto the floor
+
+    def _meter_level(self, rms):
+        """Perceptual 0..1 for the meters, auto-ranged to this microphone."""
+        if rms <= 1e-6:
+            return 0.0
+        db = 20.0 * math.log10(rms)
+        if db < self.METER_FLOOR_DB:
+            return 0.0
+        # ceiling rises instantly to a new peak, then decays slowly, so a
+        # single loud syllable does not permanently desensitise the meter
+        ceil = getattr(self, "_meter_ceil", self.METER_CEIL_MIN)
+        ceil = db if db > ceil else ceil - 0.05      # ~3 dB/sec decay at 60Hz
+        self._meter_ceil = max(ceil, self.METER_CEIL_MIN)
+        lo = self._meter_ceil - self.METER_RANGE_DB
+        return max(0.0, min(1.0, (db - lo) / (self._meter_ceil - lo)))
 
     def _resolve_device(self):
         name = self.settings.get("mic_device", "")
