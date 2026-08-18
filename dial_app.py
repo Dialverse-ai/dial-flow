@@ -60,7 +60,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.2.0"
+APP_VERSION = "4.3.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -247,6 +247,23 @@ def _app_context():
         return "general"
     except Exception:
         return "general"
+
+
+QUOTA_MSG = ("API quota used up - upgrade the Cohere key "
+             "(dashboard.cohere.com/api-keys)")
+
+
+def _quota_exhausted(body):
+    """Is this 429 a hard monthly cap rather than a transient burst limit?
+
+    Cohere trial keys allow 1000 calls/month and answer with an explicit
+    message once that is spent. Retrying that only consumes more of the
+    cap, so it must be told apart from a per-minute throttle."""
+    b = (body or "").lower()
+    return ("trial key" in b
+            or "calls / month" in b
+            or "calls/month" in b
+            or "monthly" in b and "limit" in b)
 
 
 def _speech_present(audio):
@@ -908,7 +925,22 @@ class Engine:
             if resp.status_code == 200:
                 return resp.json().get("text", "").strip(), None
             if resp.status_code == 429:
-                last_err = "Rate limited â€” try again in a minute"
+                # Two very different things arrive as 429. A per-minute
+                # burst limit clears on its own, so retrying is right. A
+                # MONTHLY quota does not clear for days or weeks, and every
+                # retry BURNS another call against the very cap that is
+                # blocking us - 4 attempts x N chunks per take, all wasted.
+                # Field failure 2026-08-19: the trial key hit its 1000
+                # calls/month cap and the app reported "Network error -
+                # check connection", which sent everyone hunting a
+                # connectivity problem that did not exist.
+                body = (resp.text or "")[:400]
+                if _quota_exhausted(body):
+                    logging.error("API QUOTA EXHAUSTED: %s", body)
+                    return None, QUOTA_MSG
+                last_err = "Rate limited - try again in a minute"
+                logging.warning("rate limited (attempt %s/4): %s",
+                                attempt + 1, body[:160])
                 time.sleep(5.0)
                 continue
             logging.error("api %s: %s", resp.status_code, resp.text[:300])
@@ -955,7 +987,7 @@ class Engine:
         #
         # Sequential is also strictly better on failure: a chunk that dies
         # does not drag its siblings down with it.
-        parts, failed = [], 0
+        parts, failed, quota = [], 0, False
         for i, (a, b) in enumerate(spans):
             if on_progress:
                 on_progress(i + 1, len(spans))
@@ -965,11 +997,18 @@ class Engine:
             if err:
                 logging.error("chunk %s/%s failed: %s", i + 1, len(spans), err)
                 failed += 1
+                if err == QUOTA_MSG:
+                    # the cap is account-wide; the remaining chunks cannot
+                    # succeed and each attempt spends more of it
+                    quota = True
+                    logging.error("stopping after chunk %s/%s - quota is gone",
+                                  i + 1, len(spans))
+                    break
                 continue
             if text:
                 parts.append(text)
         if not parts:
-            return None, "Network error â€” check connection"
+            return None, QUOTA_MSG if quota else "Network error - check connection"
         out = " ".join(parts)
         if failed:
             # partial beats nothing, but it must NOT read as a clean success:
@@ -1283,6 +1322,10 @@ class Engine:
                     logging.error("chat parse failed: %s", resp.text[:300])
                     return None
             if resp.status_code == 429:
+                # a spent monthly cap will not clear; retrying only eats more
+                if _quota_exhausted(resp.text or ""):
+                    logging.error("cleanup skipped - API quota exhausted")
+                    return None
                 transient += 1
                 if transient > 2:
                     return None
