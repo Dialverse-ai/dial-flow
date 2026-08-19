@@ -60,7 +60,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.3.0"
+APP_VERSION = "4.4.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -1605,6 +1605,9 @@ class DialFlow:
         user = (os.environ.get("USERNAME") or "").split(" ")[0].split(".")[0]
         return {
             "key_set": bool(key),
+            # masked so the Settings row can show WHICH key is loaded without
+            # putting the secret on screen
+            "key_hint": (key[:4] + "…" + key[-4:]) if key and len(key) > 12 else "",
             "logo": logo,
             "user": user.capitalize() if user else "",
             "version": APP_VERSION,
@@ -1626,8 +1629,16 @@ class DialFlow:
         with open(ENV_FILE, "w", encoding="utf-8") as f:
             f.write(f"COHERE_API_KEY={key}\n")
         os.environ["COHERE_API_KEY"] = key
-        logging.info("api key saved on first run")
-        self._boot_engine(key)
+        if self.engine is None:
+            logging.info("api key saved on first run")
+            self._boot_engine(key)
+        else:
+            # REPLACING a key (quota ran out, rotation). Swap it on the live
+            # engine — booting a second one would spawn another level pusher
+            # and pill follower, and the two would fight over the pill.
+            self.engine.api_key = key
+            self.engine._clean_model_idx = 0   # re-probe the cleanup models
+            logging.info("api key replaced")
         return {"ok": True, "init": {
             "settings": dict(self.settings),
             "history": self.history[-500:],

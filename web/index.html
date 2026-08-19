@@ -1340,6 +1340,21 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
         <div class="section-label" style="margin-top:16px">SYSTEM</div>
         <div class="set-card" data-od-id="settings-system">
           <div class="set-row">
+            <div style="flex:1;min-width:0">
+              <div class="sl">Cohere API key</div>
+              <div class="ss" id="apikey-sub">loaded from this device only</div>
+              <div id="apikey-edit" style="display:none;margin-top:8px;gap:8px;align-items:center">
+                <input id="apikey-input" placeholder="Paste a new API key…" spellcheck="false"
+                       style="flex:1;min-width:0;height:32px;padding:0 11px;background:var(--field);
+                              border:1px solid var(--border-strong);border-radius:8px;
+                              font-size:12.5px;color:var(--text);-webkit-user-select:text;user-select:text">
+                <button class="btn-primary" style="height:32px" onclick="saveNewKey()">Save</button>
+                <button class="btn-ghost" style="height:32px" onclick="toggleKeyEdit(false)">Cancel</button>
+              </div>
+            </div>
+            <button class="btn-2nd" id="apikey-btn" onclick="toggleKeyEdit(true)">Replace</button>
+          </div>
+          <div class="set-row">
             <div><div class="sl">Start with Windows</div><div class="ss">launch quietly in the tray when you log in</div></div>
             <div class="switch" id="autostart-switch" role="switch" tabindex="0" onclick="toggleAutostart()"
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAutostart()}"></div>
@@ -1498,6 +1513,31 @@ function doUpdate(){
       ? 'Self-update only works in the packaged app — grab the exe from GitHub releases.'
       : 'Update failed — or download it from github.com/Dialverse-ai/dial-flow/releases';
   });
+}
+function toggleKeyEdit(on){
+  $('apikey-edit').style.display = on ? 'flex' : 'none';
+  $('apikey-btn').style.display = on ? 'none' : '';
+  if (on) $('apikey-input').focus(); else $('apikey-input').value = '';
+}
+function saveNewKey(){
+  const key = $('apikey-input').value.trim();
+  if (!key){ $('apikey-sub').textContent = 'Paste a key first.'; return; }
+  $('apikey-sub').textContent = 'Checking the key…';
+  api('save_key', key).then(res => {
+    if (res && res.ok){
+      // the engine picks the new key up live — no restart needed
+      $('apikey-sub').textContent = 'Key replaced — dictation is live again.';
+      toggleKeyEdit(false);
+      api('get_init').then(i => { if (i && i.key_hint) showKeyHint(i.key_hint); });
+    } else {
+      $('apikey-sub').textContent = "That key didn't work — check it and try again.";
+    }
+  });
+}
+function showKeyHint(hint){
+  $('apikey-sub').textContent = hint
+    ? 'Using ' + hint + ' — stored on this device only'
+    : 'loaded from this device only';
 }
 function checkUpdate(){
   const b = $('upd-btn');
@@ -2118,6 +2158,7 @@ function boot(init){
       `Dial Flow ${init.version} · by Dialverse · key stored on this device only`;
     $('upd-ver').textContent = `Version ${init.version}`;
   }
+  showKeyHint(init.key_hint || '');
   renderFeed(); renderRail(); renderHints();
   window.app.setState('idle', '');
 }
