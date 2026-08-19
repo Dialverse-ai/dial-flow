@@ -1340,6 +1340,13 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
         <div class="section-label" style="margin-top:16px">SYSTEM</div>
         <div class="set-card" data-od-id="settings-system">
           <div class="set-row">
+            <div><div class="sl">Speech engine</div><div class="ss" id="asr-sub">on-device — no internet, no quota</div></div>
+            <div class="seg" id="seg-asr">
+              <button data-v="local" class="on">On this PC</button>
+              <button data-v="cloud">Cohere</button>
+            </div>
+          </div>
+          <div class="set-row">
             <div style="flex:1;min-width:0">
               <div class="sl">Cohere API key</div>
               <div class="ss" id="apikey-sub">loaded from this device only</div>
@@ -1514,6 +1521,13 @@ function doUpdate(){
       : 'Update failed — or download it from github.com/Dialverse-ai/dial-flow/releases';
   });
 }
+$('seg-asr').addEventListener('click', ev => {
+  const v = ev.target.dataset.v; if (!v) return;
+  segSet('seg-asr', v); setSetting('asr_engine', v);
+  $('asr-sub').textContent = v === 'local'
+    ? 'on-device — no internet, no quota'
+    : 'Cohere API — needs a key with quota left';
+});
 function toggleKeyEdit(on){
   $('apikey-edit').style.display = on ? 'flex' : 'none';
   $('apikey-btn').style.display = on ? 'none' : '';
@@ -2158,6 +2172,10 @@ function boot(init){
       `Dial Flow ${init.version} · by Dialverse · key stored on this device only`;
     $('upd-ver').textContent = `Version ${init.version}`;
   }
+  segSet('seg-asr', S.asr_engine || 'local');
+  $('asr-sub').textContent = (S.asr_engine || 'local') === 'local'
+    ? 'on-device — no internet, no quota'
+    : 'Cohere API — needs a key with quota left';
   showKeyHint(init.key_hint || '');
   renderFeed(); renderRail(); renderHints();
   window.app.setState('idle', '');

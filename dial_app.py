@@ -8,6 +8,7 @@ or the project dir (dev). Errors go to app.log.
 
 import base64
 import ctypes
+import glob
 import hashlib
 import io
 import json
@@ -60,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "4.4.0"
+APP_VERSION = "5.0.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -122,6 +123,7 @@ DEFAULT_SETTINGS = {
     "language": "auto",
     "tone": "auto",
     "app_aware": True,
+    "asr_engine": "local",     # "local" (on-device Whisper) or "cloud"
     "paste_mode": "paste",
     "snippets": [],
     "theme": "system",
@@ -249,8 +251,151 @@ def _app_context():
         return "general"
 
 
-QUOTA_MSG = ("API quota used up - upgrade the Cohere key "
-             "(dashboard.cohere.com/api-keys)")
+QUOTA_MSG = ("API quota used up - switch to the local engine in Settings, "
+             "or upgrade the Cohere key")
+
+# ---------------------------------------------------------------- local ASR
+# Runs Whisper on this machine: no API, no quota, no upload. large-v3-turbo
+# is ~1.6GB and near large-v3 quality. Measured on this laptop over a 229s
+# take: 9.4s on the RTX 3060 (24x realtime), 101s on CPU int8 (2.3x). GPU is
+# used whenever the CUDA runtime can be found, CPU otherwise.
+LOCAL_ASR_REPO = "deepdml/faster-whisper-large-v3-turbo-ct2"
+# Deliberately NOT under CONFIG_DIR: running from source that resolves to the
+# repo, which would both dump 1.6GB into git's working tree and make the
+# packaged app download its own second copy. One machine, one model.
+MODEL_DIR = os.path.join(os.environ.get("APPDATA", CONFIG_DIR),
+                         "DialFlow", "models")
+
+
+def _enable_cuda_dlls():
+    """Put the CUDA runtime on the DLL search path.
+
+    ctranslate2 needs cublas/cudnn beside it. They ship as pip wheels rather
+    than in the frozen bundle (bundling them would add ~1GB to the exe), so
+    look for them wherever a Python on this machine installed them, then fall
+    back to a cuda/ folder next to the app."""
+    roots = []
+    try:
+        import site
+        roots += [p for p in site.getsitepackages() if os.path.isdir(p)]
+        u = site.getusersitepackages()
+        if isinstance(u, str) and os.path.isdir(u):
+            roots.append(u)
+    except Exception:
+        pass
+    # The frozen app has no site-packages of its own, so look where pip
+    # actually put the wheels: per-user and per-machine Python trees, plus a
+    # cuda/ folder shipped beside the exe.
+    for base in (os.environ.get("APPDATA", ""),
+                 os.environ.get("LOCALAPPDATA", ""),
+                 os.environ.get("ProgramFiles", ""),
+                 os.environ.get("LOCALAPPDATA", "") + r"\Programs"):
+        if not base:
+            continue
+        for pat in ("Python\\Python3*\\site-packages",
+                    "Python\\Python3*\\Lib\\site-packages",
+                    "Python3*\\Lib\\site-packages"):
+            roots += glob.glob(os.path.join(base, pat))
+    roots.append(os.path.join(os.path.dirname(sys.executable), "cuda"))
+    roots.append(os.path.join(APP_DIR, "cuda"))
+    found = 0
+    for root in roots:
+        for sub in ("nvidia",):
+            base = os.path.join(root, sub)
+            if not os.path.isdir(base):
+                continue
+            for name in os.listdir(base):
+                d = os.path.join(base, name, "bin")
+                if os.path.isdir(d):
+                    try:
+                        os.add_dll_directory(d)
+                        os.environ["PATH"] = d + os.pathsep + os.environ["PATH"]
+                        found += 1
+                    except OSError:
+                        pass
+    logging.info("cuda dll dirs registered: %s", found)
+    return found > 0
+
+
+class LocalASR:
+    """Lazy Whisper. Loading costs seconds and ~1.6GB of disk, so it happens
+    once, off the hotkey path, and only if local mode is actually used."""
+
+    def __init__(self):
+        self._model = None
+        self._lock = threading.Lock()
+        self.device = "?"
+        self.status = "idle"
+
+    def available(self):
+        try:
+            import faster_whisper  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    def ready(self):
+        return self._model is not None
+
+    def load(self, on_status=None):
+        """Build the model. Downloads it on first use (~1.6GB)."""
+        with self._lock:
+            if self._model is not None:
+                return self._model
+            from faster_whisper import WhisperModel
+            os.makedirs(MODEL_DIR, exist_ok=True)
+            cached = any(LOCAL_ASR_REPO.split("/")[-1].lower() in d.lower()
+                         for d in os.listdir(MODEL_DIR)) if \
+                os.path.isdir(MODEL_DIR) else False
+            self.status = "loading" if cached else "downloading"
+            if on_status:
+                on_status(self.status)
+            gpu = _enable_cuda_dlls()
+            attempts = ([("cuda", "float16")] if gpu else []) + \
+                       [("cpu", "int8")]
+            last = None
+            for device, ctype in attempts:
+                try:
+                    t0 = time.time()
+                    # once the snapshot is on disk, load it WITHOUT contacting
+                    # Hugging Face: this is meant to run with no network at
+                    # all, and a revision check would both leak a request and
+                    # stall startup on a bad link
+                    m = WhisperModel(LOCAL_ASR_REPO, device=device,
+                                     compute_type=ctype,
+                                     download_root=MODEL_DIR,
+                                     local_files_only=cached,
+                                     cpu_threads=min(14, os.cpu_count() or 8))
+                    self._model = m
+                    self.device = device
+                    self.status = "ready"
+                    logging.info("local ASR ready on %s (%s) in %.1fs",
+                                 device, ctype, time.time() - t0)
+                    if on_status:
+                        on_status("ready")
+                    return m
+                except Exception as e:
+                    last = e
+                    logging.warning("local ASR on %s failed: %s", device,
+                                    str(e)[:200])
+            self.status = "failed"
+            if on_status:
+                on_status("failed")
+            raise last if last else RuntimeError("local ASR unavailable")
+
+    def transcribe(self, audio, lang):
+        """audio: float32 mono at SAMPLE_RATE. Returns text."""
+        m = self.load()
+        kw = {}
+        if lang in ("ar", "en"):
+            kw["language"] = lang
+        segs, _info = m.transcribe(
+            audio, beam_size=5, vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500), **kw)
+        return " ".join(s.text.strip() for s in segs).strip()
+
+
+LOCAL_ASR = LocalASR()
 
 
 def _quota_exhausted(body):
@@ -568,6 +713,21 @@ class Engine:
         # ...and the first TLS handshake likewise: open the socket before the
         # user ever hits record, so take one is as fast as take two
         threading.Thread(target=self._prewarm_http, daemon=True).start()
+        # ...and the local model too. Loading is seconds (or a 1.6GB download
+        # the very first time), and doing it lazily would put all of that in
+        # front of his first transcript.
+        if self.settings.get("asr_engine", "local") == "local":
+            threading.Thread(target=self._prewarm_local, daemon=True).start()
+
+    def _prewarm_local(self):
+        try:
+            LOCAL_ASR.load(on_status=lambda s: self.on_state(
+                "idle", {"downloading": "Downloading the speech model…",
+                         "loading": "Starting the speech model…",
+                         "ready": "", "failed": "Local model unavailable"}
+                .get(s, "")))
+        except Exception:
+            logging.exception("local ASR prewarm failed")
 
     def _prewarm_http(self):
         """Open the TLS connection to the API up front and leave it pooled."""
@@ -964,6 +1124,23 @@ class Engine:
         # chunk left the flag set and the NEXT clean take was reported as
         # partial data loss. Covers transcribe_file retries and command mode.
         self._last_partial = None
+
+        # LOCAL: no upload, so none of the chunking exists. The whole take
+        # goes through in one pass and neither length nor uplink matters.
+        if self.settings.get("asr_engine", "local") == "local":
+            try:
+                if on_progress:
+                    on_progress(1, 1)
+                t0 = time.time()
+                text = LOCAL_ASR.transcribe(audio, lang)
+                logging.info("local ASR: %.0fs audio in %.1fs on %s",
+                             len(audio) / SAMPLE_RATE, time.time() - t0,
+                             LOCAL_ASR.device)
+                return (text, None) if text else (None, "Nothing recognized")
+            except Exception as e:
+                logging.exception("local ASR failed")
+                return None, f"Local model failed - {type(e).__name__}"
+
         spans = self._split_points(audio)
         if len(spans) == 1:
             buf = io.BytesIO()

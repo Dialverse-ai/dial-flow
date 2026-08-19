@@ -6,6 +6,9 @@ history.json
 settings.json
 app.log
 audio/
+# the local speech model lives in %APPDATA%\DialFlow\models; this only
+# guards against a stray copy landing here (it is ~1.5GB)
+models/
 
 # build artifacts
 .venv/
