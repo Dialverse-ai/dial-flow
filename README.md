@@ -72,12 +72,23 @@ We wrapped it in a desktop experience we love, and it costs the team **nothing t
    Windows may show *"Windows protected your PC"* the first time — click
    **More info → Run anyway** (normal for unsigned internal tools).
    <br>أول مرة ويندوز ممكن يحذرك — دوس **More info** بعدين **Run anyway**. ده طبيعي.
-2. Grab a **free key** at [dashboard.cohere.com](https://dashboard.cohere.com/api-keys)
-   (sign up → copy the Trial key) and paste it into the welcome screen.
-   <br>اعمل حساب مجاني وانسخ الـ Trial key والصقه في شاشة الترحيب.
+2. **Wait for the speech model on first launch.** Dial Flow transcribes on
+   your own machine, so the first run downloads a **~1.5 GB** model once.
+   The floating bar shows the progress; after that it never touches the
+   internet to transcribe.
+   <br>أول تشغيل هينزّل موديل حجمه ١.٥ جيجا مرة واحدة بس — بعد كده كله بيشتغل على جهازك.
 3. Press <kbd>F9</kbd> in any app and start talking. <kbd>F10</kbd> switches
    Arabic ⇄ English.
    <br>دوس **F9** واتكلم عربي أو انجليزي أو الاتنين مع بعض — الكلام هيتكتب لوحده.
+
+> **No API key needed.** Speech recognition runs locally. An NVIDIA GPU makes
+> it roughly 13× faster (a 4-minute take transcribes in seconds); without one
+> it falls back to the CPU and still works, just slower. Settings → System
+> shows which one you're on.
+>
+> **Flow mode** — the AI cleanup that turns rambling speech into organised
+> text — is the one feature that still calls out. Paste a free Cohere key in
+> Settings to enable it, or leave it off and get raw transcripts.
 
 ## Build from source
 

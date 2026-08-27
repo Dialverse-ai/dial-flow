@@ -61,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.0.0"
+APP_VERSION = "5.1.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -673,13 +673,14 @@ class Engine:
     """Recording + transcription + optional AI cleanup. UI-agnostic."""
 
     def __init__(self, api_key, settings, on_state, on_transcript, on_language,
-                 on_cancelled_take=None, on_last_text=None):
+                 on_cancelled_take=None, on_last_text=None, on_engine=None):
         self.api_key = api_key
         self.settings = settings
         self.on_state = on_state
         self.on_transcript = on_transcript
         self.on_language = on_language
         self.on_cancelled_take = on_cancelled_take or (lambda audio: None)
+        self.on_engine = on_engine or (lambda status: None)
         self.on_last_text = on_last_text or (lambda: "")
         self._raw_once = False
         self.language = settings.get("language", "auto")
@@ -721,13 +722,10 @@ class Engine:
 
     def _prewarm_local(self):
         try:
-            LOCAL_ASR.load(on_status=lambda s: self.on_state(
-                "idle", {"downloading": "Downloading the speech model…",
-                         "loading": "Starting the speech model…",
-                         "ready": "", "failed": "Local model unavailable"}
-                .get(s, "")))
+            LOCAL_ASR.load(on_status=self.on_engine)
         except Exception:
             logging.exception("local ASR prewarm failed")
+            self.on_engine("failed")
 
     def _prewarm_http(self):
         """Open the TLS connection to the API up front and leave it pooled."""
@@ -2190,6 +2188,19 @@ class DialFlow:
                     return e["text"]
         return ""
 
+    def on_engine(self, status):
+        """Speech-engine state for the bubble. Worth surfacing because the
+        very first local run downloads ~1.5GB, and 'nothing happens when I
+        press F9' during that is indistinguishable from a broken app."""
+        info = {
+            "mode": self.settings.get("asr_engine", "local"),
+            "status": status,
+            "device": LOCAL_ASR.device if status == "ready" else "",
+        }
+        self._engine_info = info
+        self._js(self.pill_win, f"app.engine({json.dumps(info)})")
+        self._js(self.main_win, f"app.engine({json.dumps(info)})")
+
     def _keep_cancelled_take(self, audio):
         """A cancelled recording is still saved and listed, so 'cancel' can
         never be the click that destroys minutes of speech."""
@@ -2210,11 +2221,16 @@ class DialFlow:
     def _boot_engine(self, key):
         self.engine = Engine(key, self.settings, self._on_state,
                              self._on_transcript, self._on_language,
-                             self._keep_cancelled_take, self._last_text)
+                             self._keep_cancelled_take, self._last_text,
+                             self.on_engine)
         self._bind_hotkeys()
         threading.Thread(target=self._level_pusher, daemon=True).start()
         threading.Thread(target=self._pill_follower, daemon=True).start()
         threading.Timer(1.5, self._show_pill_idle).start()
+        # tell the bubble which engine it is on as soon as it exists
+        threading.Timer(2.0, lambda: self.on_engine(
+            LOCAL_ASR.status if self.settings.get("asr_engine", "local")
+            == "local" else "ready")).start()
 
     def _bind_hotkeys(self):
         if self.engine is None:
@@ -2245,6 +2261,12 @@ class DialFlow:
                                     suppress=False)
         keyboard.add_hotkey(lk, self._debounced(self.engine.toggle_language),
                             suppress=False)
+        # Esc kills whatever is in flight. This HAS to be a global hotkey: the
+        # bubble is WS_EX_NOACTIVATE and never takes keyboard focus, so a
+        # keydown handler inside pill.html can never fire. Not suppressed and
+        # gated on _busy(), so when nothing is recording every other app sees
+        # Esc exactly as it did before.
+        keyboard.add_hotkey("esc", self._esc_cancel, suppress=False)
         if ck and ck == rk:
             logging.warning("command key %s collides with record key â€” "
                             "command mode is unavailable", ck)
@@ -2673,6 +2695,12 @@ class DialFlow:
     def pill_open(self):
         self._show_main()
 
+    def _esc_cancel(self):
+        """Global Esc, gated: only a take that is actually in flight is
+        touched, so this is invisible the other 99% of the time."""
+        if self.engine is not None and self._busy():
+            self.engine.cancel()
+
     def _busy(self):
         """Any state that owns the expanded pill â€” including the failure
         hold, which a hover-out used to shrink out from under."""
@@ -2870,7 +2898,10 @@ class DialFlow:
         window shrinks 300-500ms â†’ idle core fades in and breathes."""
         try:
             if flash:
-                self._js(self.pill_win, "app.done()")
+                # hand the bubble what the take actually produced, so the
+                # success beat can say "42 words" instead of just blinking
+                self._js(self.pill_win, "app.done(%s)"
+                         % json.dumps(getattr(self, "_last_summary", None)))
                 time.sleep(0.30)
             if self.engine is not None and self.engine.recording:
                 return  # a new recording started mid-flash â€” leave the pill
@@ -3004,6 +3035,14 @@ class DialFlow:
             pass
 
     def _on_transcript(self, entry):
+        if entry.get("text") and not entry.get("failed"):
+            secs = entry.get("secs") or 0
+            self._last_summary = {
+                "words": entry.get("words", 0),
+                "secs": round(secs),
+                "wpm": round(entry["words"] / (secs / 60)) if secs > 2 else 0,
+                "cleaned": bool(entry.get("cleaned")),
+            }
         with self._hist_lock:
             self.history.append(entry)
         self._save_history()
