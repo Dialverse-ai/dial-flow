@@ -104,8 +104,16 @@ Package a single-file exe:
 ```bash
 pyinstaller --noconfirm --onefile --windowed --name DialFlow --icon app.ico ^
   --add-data "app.ico;." --add-data "web;web" ^
-  --collect-all webview --collect-all clr_loader --collect-all pythonnet dial_app.py
+  --collect-all webview --collect-all clr_loader --collect-all pythonnet ^
+  --collect-data faster_whisper dial_app.py
 ```
+
+> `--collect-data faster_whisper` is **required**. Without it the speech model
+> still loads, then every transcription dies on
+> `silero_vad_v6.onnx ... File doesn't exist` — the voice-activity asset lives
+> inside the `faster_whisper` package and PyInstaller does not pick it up on
+> its own. Building without it produces an exe that looks completely healthy
+> until the first take.
 
 **Stack:** Python engine (recording, hotkeys, tray) + WebView2 frontend
 (`web/index.html`, 60fps, zero external assets) · speech by

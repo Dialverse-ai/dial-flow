@@ -61,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.1.1"
+APP_VERSION = "5.1.2"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
