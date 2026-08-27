@@ -626,7 +626,7 @@ function label(){
    times a second for nothing */
 let lastTxt='';
 function say(){
- const p=label(),k=p[0]+' '+p[1];
+ const p=label(),k=p[0]+' '+p[1];
  if(k===lastTxt)return;
  lastTxt=k;
  elHov.textContent=p[0];elHovS.textContent=p[1];elPanelT.textContent=p[0];
@@ -863,4 +863,16 @@ function raf(){
  if(panelOpen&&engStatus==='downloading')stats();
  requestAnimationFrame(raf);}
 requestAnimationFrame(raf);
+/* Ask Python for our state rather than waiting to be told. Its startup
+   pushes (dock, hotkey, engine) fire on a timer a second or two after boot
+   and are silently dropped if this page has not finished loading — which is
+   what a cold start of the onefile build actually does, leaving the bar
+   claiming the engine was ready while it was still loading the model.
+   pywebview injects the api asynchronously, so poll briefly for it instead
+   of assuming it exists on first paint. */
+(function ask(n){
+ const api=(window.pywebview||{}).api;
+ if(api&&api.pill_ready){api.pill_ready();return;}
+ if(n<80)setTimeout(()=>ask(n+1),100);
+})(0);
 </script></body></html>

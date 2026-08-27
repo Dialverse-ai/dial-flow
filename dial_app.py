@@ -61,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.1.0"
+APP_VERSION = "5.1.1"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -475,7 +475,22 @@ def _load_pill_html():
     file is missing so the app still records."""
     try:
         with open(PILL_FILE, encoding="utf-8") as f:
-            return f.read()
+            html = f.read()
+        # A NUL anywhere in here truncates the WHOLE page at that byte:
+        # pywebview hands the markup to WebView2 as a NUL-terminated string,
+        # so everything after it is silently dropped. v5.1.0 shipped with one
+        # stray NUL in a string literal 36KB in — the DOM still parsed and the
+        # bar still LOOKED right, but its <script> was cut mid-token, so the
+        # page had no behaviour at all: no hover, no drag, no dock picker.
+        # Nothing raised, and nothing was logged. Strip and shout instead.
+        bad = sum(1 for c in html if ord(c) < 0x20 and c not in "\n\r\t")
+        if bad:
+            logging.error("pill.html has %d control character(s) — stripping. "
+                          "Left in, they truncate the page and kill the bar.",
+                          bad)
+            html = "".join(c for c in html
+                           if ord(c) >= 0x20 or c in "\n\r\t")
+        return html
     except OSError:
         logging.exception("pill.html missing â€” using fallback")
         return ("<!DOCTYPE html><html><body style='background:#171320'>"
@@ -1740,6 +1755,9 @@ class PillApi:
     def pill_open(self):
         return self._app.pill_open()
 
+    def pill_ready(self):
+        return self._app.pill_ready()
+
     def pill_hover_in(self):
         return self._app.pill_hover_in()
 
@@ -2694,6 +2712,26 @@ class DialFlow:
 
     def pill_open(self):
         self._show_main()
+
+    def pill_ready(self):
+        """The bar's page has loaded and is asking for its state.
+
+        Everything Python pushes at startup â€” dock, hotkey, engine â€” used to
+        be fired on timers 1.5s and 2.0s after boot and was silently dropped
+        if the WebView2 had not finished loading yet. A cold start of the
+        419MB onefile takes longer than that, so the bar could come up
+        believing the engine was idle while it was still loading the model.
+        The page asking is the only ordering that cannot race: it cannot ask
+        before it exists."""
+        try:
+            self._js(self.pill_win, "app.reckey(%s)"
+                     % json.dumps(self.settings["record_key"]))
+            self._js(self.pill_win, "app.pos(%s)" % json.dumps(self.dock()))
+            info = getattr(self, "_engine_info", None)
+            if info:
+                self._js(self.pill_win, f"app.engine({json.dumps(info)})")
+        except Exception:
+            logging.exception("pill_ready failed")
 
     def _esc_cancel(self):
         """Global Esc, gated: only a take that is actually in flight is
