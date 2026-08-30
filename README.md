@@ -49,7 +49,7 @@ We wrapped it in a desktop experience we love, and it costs the team **nothing t
 | **Refine** | <kbd>F4</kbd> and speak a change to the last thing you dictated — *"make it shorter"*, *"drop point three"*. No selecting required. |
 | **Raw take** | Hold <kbd>Shift</kbd> as you start recording for one take with Flow off — exactly as spoken. |
 | **Prompt framings** | Put `{}` in a snippet and it becomes a reusable template: say *"review framing &lt;what you want&gt;"* and your words drop into the slot. |
-| **Auto language** | Speak Arabic, English or both — no toggle needed (F10 still switches if you want to pin one). |
+| **Auto language** | Speak Arabic, English or both — detected per segment, so a mid-sentence switch stays in the right script. <kbd>F10</kbd> pins English if auto-detect ever guesses wrong on a short take. |
 | **Dictionary** | Teach it your client names and company jargon once — spelled right forever, in both languages. |
 | **Insights** | Words dictated, speed in WPM, language mix, and a 6-month streak heatmap. |
 | **The floating bar** | Drag it to the left, bottom or right edge — it stands upright on the sides and follows you across monitors. Hover for a cancel button, or open it into a panel. Failures show up right there. |
