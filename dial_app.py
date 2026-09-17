@@ -102,6 +102,7 @@ ICON_FILE = os.path.join(RESOURCE_DIR, "app.ico")
 UI_FILE = os.path.join(RESOURCE_DIR, "web", "index.html")
 PILL_FILE = os.path.join(RESOURCE_DIR, "web", "pill.html")
 HISTORY_FILE = os.path.join(CONFIG_DIR, "history.json")
+NOTES_FILE = os.path.join(CONFIG_DIR, "notes.json")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 AUDIO_DIR = os.path.join(CONFIG_DIR, "audio")
 AUDIO_KEEP = 40  # rolling cap of kept recordings (~10MB worst case)
@@ -116,6 +117,7 @@ DEFAULT_SETTINGS = {
     "lang_key": "f10",
     "command_key": "f8",
     "refine_key": "f4",
+    "note_key": "f7",
     "chime_on": True,
     "chime_volume": 40,
     "mic_device": "",
@@ -179,6 +181,147 @@ TONE_PROMPTS = {
 # of this rewrote the speaker's words into imperative task lists â€” "what is
 # flow mode 2.0?" came back as "1. Explain what Flow Mode 2.0 is." That is
 # fabrication, not formatting. This version reorganizes and nothing else.
+# Spoken filler. Deliberately a SHORT list of words that carry no meaning in
+# any reading. "like" is not here on purpose: stripping it turned "should feel
+# like paper" into "should feel paper". Same for "sort of" / "kind of" /
+# "actually" - they hedge, and a hedge is content. When in doubt it stays; the
+# cost of leaving an "um" in is nothing, the cost of eating a real word is a
+# sentence that no longer says what he said.
+_FILLER = re.compile(
+    r"\b(?:umm?|uh+|er+|hmm+|you know|i mean|ok so|okay so|so yeah)\b[,\s]*"
+    r"|(?:يعني|امم|"
+    r"ياعني)[،\s]*",
+    re.IGNORECASE)
+
+# A line is a TASK if it reads as something to do. Deliberately cue-based and
+# conservative: a missed task still lands in notes, where he will see it, but
+# a false positive puts words in his mouth as a commitment he never made.
+_TASK_CUES = re.compile(
+    r"\b(?:i (?:need|have) to|i should|i must|i gotta|gotta|need to|"
+    r"remind me to|remember to|don'?t forget to|make sure (?:to|i)|"
+    r"todo|to-do|task|i'?ll|i will|let'?s|we (?:need|should) to|"
+    r"should get done|has to (?:be|get) done)\b"
+    r"|لازم|يجب|محتاج"
+    r"|فاكرني|متنساش",
+    re.IGNORECASE)
+
+# A bare imperative is a task even with no cue phrase in front of it: dictating
+# a to-do list, people say "ping Sam about the SMS thing", not "I need to ping
+# Sam". Anchored to the START of the clause so "I asked him to review it" - a
+# report, not a task - does not match.
+_TASK_VERB = re.compile(
+    r"^(?:ping|send|call|email|text|check|finish|fix|write|review|ask|tell|"
+    r"book|buy|update|add|remove|delete|deploy|ship|test|push|merge|read|"
+    r"schedule|follow up|reply|answer|confirm|chase|prep|prepare|draft|"
+    r"clean|set up|sort out|look into|reach out)\b",
+    re.IGNORECASE)
+
+# Dropped when building a title - they name nothing.
+_STOP = {"the", "and", "also", "then", "but", "for", "with", "that", "this",
+         "today", "really", "just", "need", "needs", "want", "wanna", "gotta",
+         "should", "would", "could", "about", "from", "into", "some", "then",
+         "have", "has", "had", "was", "were", "are", "our", "its", "his",
+         "her", "their", "you", "your", "they", "them", "there", "here",
+         "what", "when", "where", "which", "who", "how", "why", "all",
+         "can", "will", "not", "yeah", "okay", "think", "thinking", "like",
+         "make", "made", "get", "got", "put", "one", "two", "now"}
+
+# Leading connectives to shave once a clause is standing on its own.
+_LEAD = re.compile(
+    r"^(?:and|also|then|plus|but|so|ok|okay|yeah|well|now)\b[,\s]*"
+    r"|^(?:و|كمان|برضه)\s*",
+    re.IGNORECASE)
+
+
+def _split_clauses(text):
+    """Speech has almost no punctuation, so sentence-splitting alone returns
+    one 300-word blob. Split on terminators AND on the spoken connectives
+    people actually use to start a new thought."""
+    parts = re.split(r"(?<=[.!?؟۔])\s+|\n+", text)
+    out = []
+    for p in parts:
+        # ", and also X" / " and then X" start new thoughts in dictation
+        for piece in re.split(
+                r"[,،]?\s+(?=(?:and |also |then |plus |"
+                r"وكمان |كمان )"
+                r"(?:i |we |yeah |))", p):
+            piece = piece.strip(" ,،;:-")
+            if piece:
+                out.append(piece)
+    return out
+
+
+def _tidy_clause(s):
+    s = _FILLER.sub(" ", s)
+    # repeat: dictation stacks these ("and also yeah, remind me..."), and a
+    # single pass left "Yeah remind me to..." sitting at the front of a task
+    for _ in range(4):
+        stripped = _LEAD.sub("", s, count=1).lstrip()
+        if stripped == s:
+            break
+        s = stripped
+    s = re.sub(r"\s{2,}", " ", s).strip(" ,،;:-")
+    return s[:1].upper() + s[1:] if s and s[:1].isascii() else s
+
+
+def _organize_locally(text):
+    """Sort a dump into tasks and notes with no model and no network.
+
+    This is the floor, not the ceiling: it is cue-based, so it will miss a
+    task phrased sideways. That is the right way to be wrong here - a missed
+    task is still visible under notes, whereas inventing a commitment the
+    user never made is the failure they would never forgive. The raw
+    transcript sits one click away regardless."""
+    tasks, notes = [], []
+    for clause in _split_clauses(text):
+        tidy = _tidy_clause(clause)
+        if len(tidy) < 2:
+            continue
+        # the cue can sit anywhere ("so I need to X"), but a bare imperative
+        # only counts at the front of the tidied clause
+        is_task = bool(_TASK_CUES.search(clause) or _TASK_VERB.match(tidy))
+        (tasks if is_task else notes).append(tidy)
+    if not tasks and not notes:
+        return None
+    # built from the TIDIED lines, not the raw text - off the raw it read
+    # "finish clickup research umm", with the filler it had just removed
+    head = (tasks + notes)[0]
+    words = [w for w in re.sub(r"[^\w\s؀-ۿ]", " ", head).split()
+             if len(w) > 2 and w.lower() not in _STOP][:4]
+    return {"title": " ".join(words)[:60], "tasks": tasks, "notes": notes,
+            "by": "local"}
+
+
+NOTE_PROMPT = (
+    "You are filing a spoken brain-dump into a personal notebook. The speaker "
+    "talks in Egyptian Arabic, English, or both in one sentence.\n\n"
+    "Split what they said into two piles and return STRICT JSON:\n"
+    '{"title": "...", "tasks": ["..."], "notes": ["..."]}\n\n'
+    "tasks  = things they intend to DO. Anything phrased as needing to happen: "
+    "'I need to X', 'remind me to X', 'X should get done', 'لازم أعمل X'.\n"
+    "notes  = everything else. Thoughts, decisions, observations, questions, "
+    "context, things they are chewing on.\n"
+    "title  = 4 words or fewer naming what this dump was about. Plain, "
+    "concrete, no colons, no 'Notes on'.\n\n"
+    "RULES, in order of importance:\n"
+    "1. NEVER invent. Every task and every note must come from something they "
+    "actually said. If they said four things, you return four things. Do not "
+    "add a task they did not ask for, do not infer a next step, do not "
+    "helpfully expand.\n"
+    "2. NEVER drop. Everything they said lands in exactly one pile. If you "
+    "cannot tell which, it is a note. Losing a sentence is worse than filing "
+    "it in the wrong pile.\n"
+    "3. Tidy only. Cut 'umm', 'you know', 'يعني', false starts and repeated "
+    "words. Fix grammar. Keep THEIR words, phrasing and language otherwise - "
+    "an Arabic sentence stays Arabic, an English one stays English, a mixed "
+    "one stays mixed. Do not translate, summarise, or make it more formal.\n"
+    "4. One task per line, one thought per note. Split a run-on into separate "
+    "entries rather than making one long line.\n"
+    "5. Never merge two different things into one entry to make it shorter.\n\n"
+    "Return ONLY the JSON object. No markdown fence, no commentary.\n\n"
+    "What they said:\n"
+)
+
 PROMPT_MODE = (
     "You are a TRANSCRIPT FORMATTER. The text is speech dictated by a user "
     "who will send it to an AI assistant. You reorganize their words. You "
@@ -777,7 +920,8 @@ class Engine:
     """Recording + transcription + optional AI cleanup. UI-agnostic."""
 
     def __init__(self, api_key, settings, on_state, on_transcript, on_language,
-                 on_cancelled_take=None, on_last_text=None, on_engine=None):
+                 on_cancelled_take=None, on_last_text=None, on_engine=None,
+                 on_note=None):
         self.api_key = api_key
         self.settings = settings
         self.on_state = on_state
@@ -785,6 +929,7 @@ class Engine:
         self.on_language = on_language
         self.on_cancelled_take = on_cancelled_take or (lambda audio: None)
         self.on_engine = on_engine or (lambda status: None)
+        self.on_note = on_note or (lambda entry: None)
         self.on_last_text = on_last_text or (lambda: "")
         self._raw_once = False
         self.language = settings.get("language", "auto")
@@ -1011,6 +1156,17 @@ class Engine:
         else:
             self.start_refine()
 
+    def toggle_note(self):
+        """A take that goes into the notebook instead of the cursor. Same
+        recording path as everything else â€” it only differs at the end, where
+        it is filed under today rather than pasted into whatever window
+        happens to be focused."""
+        if self.recording:
+            self.stop_recording()
+            return
+        self.mode = "note"
+        self.start_recording()
+
     def _start_inner(self):
         with self.lock:
             if self.recording:
@@ -1110,7 +1266,10 @@ class Engine:
             self.on_state("transcribing", "")
             # snapshot EVERYTHING the worker needs â€” a second recording
             # started mid-transcription must not swap state under it
-            if mode == "command":
+            if mode == "note":
+                self._spawn(self._note_transcribe, audio, elapsed,
+                            self.language)
+            elif mode == "command":
                 self._spawn(self._command_transcribe, audio, elapsed,
                             self.language, self._cmd_selection)
             elif mode == "refine":
@@ -1560,6 +1719,115 @@ class Engine:
 
     # ---------- AI cleanup ----------
 
+    def _organize_note(self, text):
+        """Split a dump into {title, tasks, notes}. Never returns None.
+
+        Sorting happens on this machine by default, like transcription does.
+        A Cohere key is an upgrade, not a requirement: it reads intent better
+        and tidies grammar properly, but the notebook must not stop working
+        because a key expired, and it must not need the network to file a
+        thought. If the key is missing, dead or unconvincing, the local
+        splitter answers instead."""
+        if self.api_key and not getattr(self, "_chat_dead", False):
+            ai = self._organize_note_ai(text)
+            if ai:
+                ai["by"] = "ai"
+                return ai
+        return _organize_locally(text)
+
+    def _organize_note_ai(self, text):
+        out = self._chat(NOTE_PROMPT + text)
+        if not out:
+            return None
+        # models still fence JSON now and then despite being told not to
+        out = re.sub(r"^\s*```(?:json)?|```\s*$", "", out.strip()).strip()
+        try:
+            data = json.loads(out)
+        except ValueError:
+            # last resort: the first {...} span in the reply
+            m = re.search(r"\{.*\}", out, re.S)
+            if not m:
+                logging.warning("note organize: no JSON in reply")
+                return None
+            try:
+                data = json.loads(m.group(0))
+            except ValueError:
+                logging.warning("note organize: unparseable JSON")
+                return None
+        if not isinstance(data, dict):
+            return None
+
+        def lines(key):
+            v = data.get(key) or []
+            if isinstance(v, str):
+                v = [v]
+            return [s.strip() for s in v
+                    if isinstance(s, str) and s.strip()][:60]
+
+        tasks, notes = lines("tasks"), lines("notes")
+        if not tasks and not notes:
+            return None
+        # A dump that comes back far shorter than it went in means the model
+        # summarised instead of sorting, which is the one failure the raw copy
+        # exists to catch - but we would rather file the raw take than show a
+        # confident, lossy version of it.
+        kept = sum(len(s) for s in tasks + notes)
+        if kept < len(text) * 0.45:
+            logging.warning("note organize: model returned %d%% of the dump - "
+                            "summarised instead of sorting, using local split",
+                            round(kept * 100 / max(1, len(text))))
+            return None
+        title = (data.get("title") or "").strip().strip(".:")
+        return {"title": title[:60], "tasks": tasks, "notes": notes}
+
+    def _note_transcribe(self, audio, duration, lang):
+        """Transcribe a notebook take and hand it to the app to file. Nothing
+        here touches the clipboard or the focused window."""
+        t0 = time.time()
+        gen = self._gen
+        buf = io.BytesIO()
+        sf.write(buf, audio, SAMPLE_RATE, format="WAV", subtype="PCM_16")
+        audio_name = self._keep_audio(buf.getvalue(), t0)
+        text, err = self._asr_audio(
+            audio, lang,
+            lambda i, n: self._worker_state("transcribing", f"{i}/{n}"))
+        if self._cancelled(gen):
+            logging.info("note cancelled - result dropped")
+            return
+        if err:
+            self._worker_state("error", err)
+            return
+        if not text:
+            self._worker_state("idle", "Nothing recognized")
+            return
+        text = _apply_dictionary(
+            text, _parse_dictionary(self.settings.get("dictionary", "")))
+        self._worker_state("cleaning", "")
+        org = self._organize_note(text)
+        if self._cancelled(gen):
+            return
+        entry = {
+            "ts": time.time(),
+            "day": time.strftime("%Y-%m-%d"),
+            "raw": text,
+            "title": (org or {}).get("title") or "",
+            "tasks": [{"id": f"{int(time.time()*1000)}-{i}", "text": t,
+                       "done": False, "done_ts": None}
+                      for i, t in enumerate((org or {}).get("tasks", []))],
+            "notes": (org or {}).get("notes") or ([text] if not org else []),
+            "organized": bool(org),
+            # which splitter produced this. The page badges it, and the answer
+            # has to be honest: he reads "AI" as "these are not exactly my
+            # words" and "On device" as "nothing left this machine".
+            "by": (org or {}).get("by", "local"),
+            "secs": round(duration, 1),
+            "words": len(text.split()),
+            "audio": audio_name,
+        }
+        self.on_note(entry)
+        n = len(entry["tasks"])
+        self._worker_state("idle", "Noted" + (f" - {n} task{'s'*(n!=1)}" if n else ""))
+
     def _chat(self, prompt):
         """One Cohere chat call with the model-fallback chain. Transient
         failures (429, network blips) retry â€” a silently skipped cleanup
@@ -1604,6 +1872,15 @@ class Engine:
                 except (KeyError, IndexError, TypeError):
                     logging.error("chat parse failed: %s", resp.text[:300])
                     return None
+            if resp.status_code == 401:
+                # A bad key is not transient and is identical on every model,
+                # so walking the chain just buys three more 401s. Latch it:
+                # the notebook falls straight through to the local splitter
+                # instead of stalling ~2s on a doomed round-trip per note.
+                # Cleared by save_key, so pasting a good key works at once.
+                self._chat_dead = True
+                logging.error("chat disabled - API key rejected (401)")
+                return None
             if resp.status_code == 429:
                 # a spent monthly cap will not clear; retrying only eats more
                 if _quota_exhausted(resp.text or ""):
@@ -1827,6 +2104,24 @@ class Api:
     def get_init(self):
         return self._app.get_init()
 
+    def notes_all(self):
+        return self._app.notes_all()
+
+    def note_toggle(self, ts, task_id, done):
+        return self._app.note_toggle(ts, task_id, done)
+
+    def note_add_task(self, ts, text):
+        return self._app.note_add_task(ts, text)
+
+    def note_delete_task(self, ts, task_id):
+        return self._app.note_delete_task(ts, task_id)
+
+    def note_delete(self, ts):
+        return self._app.note_delete(ts)
+
+    def note_add_text(self, text):
+        return self._app.note_add_text(text)
+
     def save_key(self, key):
         return self._app.save_key(key)
 
@@ -1919,6 +2214,8 @@ class DialFlow:
         # while another thread may be serializing the same list)
         self._hist_lock = threading.RLock()
         self.history = self._load_history()
+        self._notes_lock = threading.RLock()
+        self.notes = self._load_notes()
 
     # ---------- js api ----------
 
@@ -1971,6 +2268,7 @@ class DialFlow:
             # and pill follower, and the two would fight over the pill.
             self.engine.api_key = key
             self.engine._clean_model_idx = 0   # re-probe the cleanup models
+            self.engine._chat_dead = False     # a 401 latch is about the OLD key
             logging.info("api key replaced")
         return {"ok": True, "init": {
             "settings": dict(self.settings),
@@ -1982,7 +2280,7 @@ class DialFlow:
         self.settings[key] = value
         self.settings.save()
         if key in ("rec_mode", "record_key", "lang_key", "command_key",
-                   "refine_key"):
+                   "refine_key", "note_key"):
             self._bind_hotkeys()
             if key == "record_key":
                 self._js(self.pill_win, f"app.reckey({json.dumps(value)})")
@@ -2380,7 +2678,7 @@ class DialFlow:
         self.engine = Engine(key, self.settings, self._on_state,
                              self._on_transcript, self._on_language,
                              self._keep_cancelled_take, self._last_text,
-                             self.on_engine)
+                             self.on_engine, self.on_note)
         self._bind_hotkeys()
         threading.Thread(target=self._level_pusher, daemon=True).start()
         threading.Thread(target=self._pill_follower, daemon=True).start()
@@ -2398,9 +2696,19 @@ class DialFlow:
         lk = self.settings["lang_key"]
         ck = self.settings.get("command_key", "f8")
         fk = self.settings.get("refine_key", "f4")
+        nk = self.settings.get("note_key", "f7")
         if fk and fk not in (rk, ck, lk):
             keyboard.add_hotkey(fk, self._debounced(self.engine.toggle_refine),
                                 suppress=False)
+        if nk and nk not in (rk, ck, lk, fk):
+            keyboard.add_hotkey(nk, self._debounced(self.engine.toggle_note),
+                                suppress=False)
+        elif nk:
+            # f7 was removed from the language-key choices for exactly this
+            # reason, but f11/f12 are still offered in both lists. Say so
+            # rather than leaving the notebook key quietly dead.
+            logging.warning("notebook key %s collides with another hotkey - "
+                            "the notebook key is unavailable", nk)
         if self.settings["rec_mode"] == "hold":
             keyboard.on_press_key(rk, lambda e: self.engine.start_recording(),
                                   suppress=False)
@@ -3270,6 +3578,124 @@ class DialFlow:
                 os.replace(tmp, HISTORY_FILE)
             except OSError:
                 logging.exception("history save failed")
+
+    def _load_notes(self):
+        try:
+            with open(NOTES_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+        except (OSError, ValueError):
+            return []
+
+    def _save_notes(self):
+        """Same discipline as history: serialized and atomic. These are the
+        user's own words with nowhere else to live, so a torn write is not
+        recoverable from anywhere. Unlike history there is no cap - a
+        notebook you silently truncate is not a notebook."""
+        with self._notes_lock:
+            try:
+                tmp = NOTES_FILE + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(self.notes, f, ensure_ascii=False, indent=1)
+                os.replace(tmp, NOTES_FILE)
+            except OSError:
+                logging.exception("notes save failed")
+
+    def on_note(self, entry):
+        """File a finished notebook take and show it immediately."""
+        try:
+            self.notes.append(entry)
+            self._save_notes()
+            self._js(self.main_win, "app.note(%s)" % json.dumps(entry))
+            logging.info("noted: %d task(s), %d note(s)%s",
+                         len(entry.get("tasks", [])),
+                         len(entry.get("notes", [])),
+                         "" if entry.get("organized") else " (filed raw)")
+        except Exception:
+            logging.exception("on_note failed")
+
+    def _find_note(self, ts):
+        for e in self.notes:
+            if e.get("ts") == ts:
+                return e
+        return None
+
+    def notes_all(self):
+        return self.notes
+
+    def note_toggle(self, ts, task_id, done):
+        """Tick or untick one task. Stores WHEN it was done, so a day can
+        later show what actually got finished on it."""
+        e = self._find_note(ts)
+        if not e:
+            return False
+        for t in e.get("tasks", []):
+            if t.get("id") == task_id:
+                t["done"] = bool(done)
+                t["done_ts"] = time.time() if done else None
+                self._save_notes()
+                return True
+        return False
+
+    def note_add_task(self, ts, text):
+        """Add a task by hand to an existing entry - the one thing dictation
+        cannot do is amend a dump you already filed."""
+        e, text = self._find_note(ts), (text or "").strip()
+        if not e or not text:
+            return False
+        e.setdefault("tasks", []).append({
+            "id": f"{int(time.time()*1000)}-m", "text": text[:500],
+            "done": False, "done_ts": None})
+        self._save_notes()
+        return True
+
+    def note_delete_task(self, ts, task_id):
+        e = self._find_note(ts)
+        if not e:
+            return False
+        before = len(e.get("tasks", []))
+        e["tasks"] = [t for t in e.get("tasks", []) if t.get("id") != task_id]
+        if len(e["tasks"]) != before:
+            self._save_notes()
+            return True
+        return False
+
+    def note_delete(self, ts):
+        before = len(self.notes)
+        self.notes = [e for e in self.notes if e.get("ts") != ts]
+        if len(self.notes) != before:
+            self._save_notes()
+            return True
+        return False
+
+    def note_add_text(self, text):
+        """Typed entry. Goes through the same organizer as a spoken one, so a
+        typed dump and a spoken dump land in the notebook identically."""
+        text = (text or "").strip()
+        if not text:
+            return False
+        threading.Thread(target=self._note_text_worker, args=(text,),
+                         daemon=True).start()
+        return True
+
+    def _note_text_worker(self, text):
+        org = None
+        try:
+            if self.engine is not None:
+                org = self.engine._organize_note(text)
+        except Exception:
+            logging.exception("organize failed for typed note")
+        self.on_note({
+            "ts": time.time(), "day": time.strftime("%Y-%m-%d"),
+            "raw": text, "title": (org or {}).get("title") or "",
+            "tasks": [{"id": f"{int(time.time()*1000)}-{i}", "text": t,
+                       "done": False, "done_ts": None}
+                      for i, t in enumerate((org or {}).get("tasks", []))],
+            "notes": (org or {}).get("notes") or ([text] if not org else []),
+            "organized": bool(org), "by": (org or {}).get("by", "local"),
+            "secs": 0,
+            "words": len(text.split()), "audio": "", "typed": True,
+        })
 
     def _setup_tray(self):
         try:

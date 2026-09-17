@@ -1022,6 +1022,525 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
   select:hover,.status-card:has(#spill.recording){transform:none}
   body::before{animation:none}
 }
+
+/* a dot on the nav item when an F7 take lands while you are on another page */
+.nav-item.has-new{position:relative}
+.nav-item.has-new::after{content:'';position:absolute;top:7px;right:7px;
+  width:6px;height:6px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 2px var(--sidebar)}
+
+/* ===== NOTEBOOK ===== */
+
+#page-notebook /* ============================================================
+   Dial Flow Notebook — the personal note taker,#page-notebook feels like paper.
+   Tokens from shipping app. No external resources.
+   ============================================================ */
+:root,html[data-theme=light] #page-notebook{
+  color-scheme:light;
+  --bg:#F5EFE2; --sidebar:#EDE6D4; --surface:#FFFDF7; --surface-hi:#FFFFFC;
+  --field:#F9F4EA; --tint:#F1EBDB;
+  --border:#E5DAC4; --border-strong:#D6CAB0; --divider:#EFE8D7;
+  --text:#231E17; --text2:#665D4C; --muted:#756B57; --faint:#8D8370;
+  --accent:#6C55E8; --accent2:#8B5CF6; --accent-hover:#5A45D0; --accent-text:#5240C9;
+  --accent-tint:#EEEAFB; --accent-tint-b:#DDD4F7; --accent-soft:#E3DBF8;
+  --accent-glow:rgba(108,85,232,.32); --accent-wash:rgba(108,85,232,.07);
+  --rec:#D0453E; --rec-tint:#FAE9E6; --rec-tint-b:#F0D2CC; --rec-text:#B23730;
+  --ok:#3E8E5A; --ok-tint:#E6F2E8; --ok-tint-b:#CFE5D4; --ok-text:#2F7A4C;
+  --gold:#B5822A; --gold-tint:#F7EDD8; --gold-tint-b:#E9D6AA;
+  --f-display:Georgia,'Iowan Old Style','Times New Roman',serif;
+  --f-ui:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;
+  --f-ar:'Segoe UI','Tahoma',system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.8,.3,1);
+  --rule-color:rgba(180,160,130,.18);
+  --margin-color:rgba(180,100,90,.22);
+  --check-done:var(--ok);
+  --note-bullet:var(--border-strong);
+}
+html[data-theme=dark] #page-notebook{
+  color-scheme:dark;
+  --bg:#17140F; --sidebar:#1D1914; --surface:#221E18; --surface-hi:#2A251E;
+  --field:#1C1813; --tint:#272219;
+  --border:#3A3228; --border-strong:#4A4033; --divider:#2E271E;
+  --text:#F2EADA; --text2:#BCB19C; --muted:#9C9280; --faint:#867C6B;
+  --accent:#8B77F0; --accent2:#A78BFA; --accent-text:#B9A8FB;
+  --accent-tint:#262040; --accent-tint-b:#332A52; --accent-soft:#2E2648;
+  --rec:#E8695F; --rec-tint:#33201D; --rec-tint-b:#452824; --rec-text:#F09186;
+  --ok:#5BB07C; --ok-tint:#1D2E22; --ok-tint-b:#2A4231; --ok-text:#7CC79A;
+  --gold:#D3A254; --gold-tint:#312717; --gold-tint-b:#443620;
+  --rule-color:rgba(120,100,70,.16);
+  --margin-color:rgba(180,100,90,.18);
+  --check-done:var(--ok);
+  --note-bullet:var(--border-strong);
+}
+#page-notebook{margin:0;padding:0;box-sizing:border-box}
+#page-notebook{font-size:14px}
+#page-notebook{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--f-ui);
+  min-height:100vh;
+}
+
+#page-notebook /* ---- notebook wrapper with bound edge ---- */
+.notebook{
+  max-width:680px;
+  margin:0 auto;
+  padding:28px 0 60px;
+  position:relative;
+}
+#page-notebook /* left margin line — the red rule of a notebook */
+.notebook::before{
+  content:'';
+  position:fixed;
+  top:0; bottom:0;
+  left:calc(50% - 340px + 38px);
+  width:2px;
+  background:var(--margin-color);
+  pointer-events:none;
+  z-index:1;
+}
+@media(max-width:720px){
+  .notebook{padding:20px 16px 48px}
+  .notebook::before{left:36px}
+}
+
+#page-notebook /* ---- header ---- */
+.head{
+  display:flex;
+  align-items:flex-end;
+  gap:16px;
+  margin-bottom:20px;
+  padding:0 48px;
+}
+@media(max-width:720px){.head{padding:0 24px}}
+#page-notebook .head h1{
+  font-family:var(--f-display);
+  font-size:28px;
+  font-weight:600;
+  font-style:italic;
+  letter-spacing:-.01em;
+  flex:1;
+  color:var(--text);
+}
+#page-notebook .tabs{
+  display:flex;
+  gap:0;
+  background:var(--field);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:3px;
+}
+#page-notebook .tab{
+  border:0;
+  background:none;
+  font-family:var(--f-ui);
+  font-size:12px;
+  font-weight:600;
+  color:var(--muted);
+  padding:6px 14px;
+  border-radius:6px;
+  cursor:pointer;
+  transition:background .15s var(--ease),color .15s var(--ease),box-shadow .15s var(--ease);
+}
+@media(prefers-reduced-motion:reduce){.tab{transition:none}}
+#page-notebook .tab:hover{color:var(--text2)}
+#page-notebook .tab.on{
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+#page-notebook .tab .n{
+  display:inline-block;
+  min-width:16px;
+  margin-left:5px;
+  padding:1px 5px;
+  background:var(--accent-tint);
+  color:var(--accent-text);
+  border-radius:10px;
+  font-size:10px;
+  font-weight:700;
+  text-align:center;
+}
+#page-notebook .tab.on .n{background:var(--accent);color:#fff}
+
+#page-notebook /* ---- pages ---- */
+.page{display:none}
+#page-notebook .page.on{display:block}
+
+#page-notebook /* ---- composer: top of a fresh page ---- */
+.composer{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin:0 48px 28px;
+  padding:16px 18px 14px;
+  position:relative;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+@media(max-width:720px){.composer{margin:0 0 24px}}
+#page-notebook .composer::before{
+  /* faint ruled lines in the textarea area */
+  content:'';
+  position:absolute;
+  top:16px; left:18px; right:18px;
+  height:58px;
+  background:repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 23px,
+    var(--rule-color) 23px,
+    var(--rule-color) 24px
+  );
+  pointer-events:none;
+  border-radius:4px;
+}
+#page-notebook .composer textarea{
+  width:100%;
+  min-height:58px;
+  resize:vertical;
+  border:0;
+  background:transparent;
+  font-family:var(--f-display);
+  font-size:15px;
+  line-height:24px;
+  color:var(--text);
+  outline:none;
+  position:relative;
+  z-index:1;
+}
+#page-notebook .composer textarea::placeholder{
+  color:var(--faint);
+  font-style:italic;
+}
+#page-notebook .composer-foot{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:10px;
+}
+#page-notebook .composer-hint{
+  flex:1;
+  font-size:11.5px;
+  color:var(--muted);
+}
+#page-notebook kbd{
+  font-family:var(--f-ui);
+  font-size:10px;
+  font-weight:700;
+  background:var(--field);
+  border:1px solid var(--border-strong);
+  border-bottom-width:2px;
+  border-radius:4px;
+  padding:2px 6px;
+  color:var(--text2);
+}
+#page-notebook .btn-add{
+  border:0;
+  background:var(--accent);
+  color:#fff;
+  font-family:var(--f-ui);
+  font-size:12px;
+  font-weight:600;
+  padding:8px 18px;
+  border-radius:7px;
+  cursor:pointer;
+  transition:background .12s var(--ease),transform .1s var(--ease);
+}
+@media(prefers-reduced-motion:reduce){.btn-add{transition:none}}
+#page-notebook .btn-add:hover{background:var(--accent-hover)}
+#page-notebook .btn-add:active{transform:scale(.97)}
+
+#page-notebook /* ---- day section: a page of the notebook ---- */
+.day{
+  margin-bottom:32px;
+  padding:0 48px;
+}
+@media(max-width:720px){.day{padding:0}}
+#page-notebook .dayhead{
+  display:flex;
+  align-items:baseline;
+  gap:12px;
+  padding:0 0 8px;
+  margin-bottom:14px;
+  border-bottom:2px solid var(--divider);
+  position:relative;
+}
+#page-notebook .dayhead h2{
+  font-family:var(--f-display);
+  font-size:20px;
+  font-weight:600;
+  font-style:italic;
+  color:var(--text);
+}
+#page-notebook .dayhead .meta{
+  font-size:11px;
+  color:var(--muted);
+  letter-spacing:.03em;
+}
+
+#page-notebook /* ---- entry: like an index card on the page ---- */
+.entry{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  margin-bottom:12px;
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.03);
+  transition:box-shadow .15s var(--ease),transform .15s var(--ease);
+}
+@media(prefers-reduced-motion:reduce){.entry{transition:none}}
+#page-notebook .entry:hover{
+  box-shadow:0 3px 12px rgba(0,0,0,.06);
+  transform:translateY(-1px);
+}
+#page-notebook /* paper texture: ruled lines */
+.entry-body{
+  padding:14px 16px 12px 16px;
+  background:repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 23px,
+    var(--rule-color) 23px,
+    var(--rule-color) 24px
+  );
+  background-position:0 10px;
+}
+#page-notebook .entry-top{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  margin-bottom:10px;
+  line-height:24px;
+}
+#page-notebook .entry-title{
+  font-family:var(--f-display);
+  font-size:16px;
+  font-weight:600;
+  flex:1;
+  color:var(--text);
+}
+#page-notebook .entry-time{
+  font-size:11px;
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  font-family:var(--f-ui);
+}
+
+#page-notebook /* ---- tasks: checkboxes with ink feel ---- */
+.tasks{
+  list-style:none;
+  margin:0 0 8px 0;
+}
+#page-notebook .tasks li{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:2px 0;
+  min-height:24px;
+  line-height:24px;
+}
+#page-notebook .tasks input[type="checkbox"]{
+  appearance:none;
+  -webkit-appearance:none;
+  width:18px;
+  height:18px;
+  margin-top:3px;
+  border:2px solid var(--border-strong);
+  border-radius:4px;
+  background:var(--surface);
+  cursor:pointer;
+  flex-shrink:0;
+  position:relative;
+  transition:border-color .12s var(--ease),background .12s var(--ease);
+}
+@media(prefers-reduced-motion:reduce){.tasks input[type="checkbox"]{transition:none}}
+#page-notebook .tasks input[type="checkbox"]:hover{
+  border-color:var(--accent);
+}
+#page-notebook .tasks input[type="checkbox"]:checked{
+  background:var(--check-done);
+  border-color:var(--check-done);
+}
+#page-notebook .tasks input[type="checkbox"]:checked::after{
+  content:'';
+  position:absolute;
+  left:5px; top:2px;
+  width:5px; height:9px;
+  border:solid #fff;
+  border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+#page-notebook .tasks label{
+  flex:1;
+  font-family:var(--f-display);
+  font-size:14.5px;
+  line-height:24px;
+  color:var(--text);
+  cursor:pointer;
+}
+#page-notebook .tasks li.done label{
+  color:var(--faint);
+  text-decoration:line-through;
+  text-decoration-color:var(--border-strong);
+}
+
+#page-notebook /* ---- notes: softer,#page-notebook like margin scribbles ---- */
+.notes{
+  list-style:none;
+  margin:6px 0 4px 28px;
+  padding-left:0;
+}
+#page-notebook .notes li{
+  position:relative;
+  padding-left:16px;
+  font-family:var(--f-display);
+  font-size:14px;
+  font-style:italic;
+  line-height:24px;
+  color:var(--text2);
+}
+#page-notebook .notes li::before{
+  content:'';
+  position:absolute;
+  left:0;
+  top:10px;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--note-bullet);
+}
+
+#page-notebook /* ---- raw transcript view ---- */
+.raw{
+  display:none;
+  white-space:pre-wrap;
+  font-family:var(--f-display);
+  font-size:14px;
+  font-style:italic;
+  line-height:24px;
+  color:var(--text2);
+  padding:4px 0;
+}
+#page-notebook .entry.showraw .tasks,#page-notebook .entry.showraw .notes{display:none}
+#page-notebook .entry.showraw .raw{display:block}
+
+#page-notebook /* ---- entry footer ---- */
+.entry-foot{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:8px 16px;
+  background:var(--field);
+  border-top:1px solid var(--divider);
+}
+#page-notebook .toggle-group{
+  display:flex;
+  gap:0;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  overflow:hidden;
+}
+#page-notebook .toggle-btn{
+  border:0;
+  background:transparent;
+  font-family:var(--f-ui);
+  font-size:10.5px;
+  font-weight:600;
+  color:var(--muted);
+  padding:5px 10px;
+  cursor:pointer;
+  transition:background .1s var(--ease),color .1s var(--ease);
+}
+@media(prefers-reduced-motion:reduce){.toggle-btn{transition:none}}
+#page-notebook .toggle-btn:hover{color:var(--text2)}
+#page-notebook .toggle-btn.on{
+  background:var(--accent-tint);
+  color:var(--accent-text);
+}
+#page-notebook .entry-foot .spacer{flex:1}
+#page-notebook .badge{
+  font-family:var(--f-ui);
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--faint);
+  padding:3px 7px;
+  background:var(--tint);
+  border-radius:4px;
+}
+
+#page-notebook /* ---- Open tab ---- */
+.open-list{
+  list-style:none;
+  padding:0 48px;
+}
+@media(max-width:720px){.open-list{padding:0}}
+#page-notebook .open-list li{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding:10px 0;
+  border-bottom:1px solid var(--divider);
+  line-height:24px;
+}
+#page-notebook .open-list li:last-child{border-bottom:0}
+#page-notebook .open-list input[type="checkbox"]{
+  appearance:none;
+  -webkit-appearance:none;
+  width:18px;
+  height:18px;
+  margin-top:3px;
+  border:2px solid var(--border-strong);
+  border-radius:4px;
+  background:var(--surface);
+  cursor:pointer;
+  flex-shrink:0;
+  position:relative;
+  transition:border-color .12s var(--ease);
+}
+@media(prefers-reduced-motion:reduce){.open-list input[type="checkbox"]{transition:none}}
+#page-notebook .open-list input[type="checkbox"]:hover{border-color:var(--accent)}
+#page-notebook .open-list label{
+  flex:1;
+  font-family:var(--f-display);
+  font-size:14.5px;
+  color:var(--text);
+  cursor:pointer;
+}
+#page-notebook .open-list .when{
+  font-size:11px;
+  color:var(--muted);
+  flex-shrink:0;
+  padding-top:1px;
+}
+
+#page-notebook /* ---- Empty state ---- */
+.empty{
+  text-align:center;
+  padding:60px 20px;
+  color:var(--muted);
+}
+#page-notebook .empty-icon{
+  display:block;
+  width:48px;
+  height:48px;
+  margin:0 auto 16px;
+  opacity:.35;
+}
+#page-notebook .empty-title{
+  font-family:var(--f-display);
+  font-size:17px;
+  font-style:italic;
+  color:var(--text2);
+  margin-bottom:6px;
+}
+#page-notebook .empty-hint{
+  font-size:12.5px;
+}
+
 </style>
 </head>
 <body>
@@ -1052,6 +1571,8 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg>Dictation</button>
       <button class="nav-item" id="nav-insights" data-od-id="nav-insights" onclick="go('insights')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="19" y1="20" x2="19" y2="14"/></svg>Insights</button>
+      <button class="nav-item" id="nav-notebook" data-od-id="nav-notebook" onclick="go('notebook')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7"/><path d="M7 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2"/><line x1="10" y1="8" x2="15" y2="8"/><line x1="10" y1="12" x2="15" y2="12"/></svg>Notebook</button>
       <button class="nav-item" id="nav-dictionary" data-od-id="nav-dictionary" onclick="go('dictionary')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Dictionary</button>
     </div>
@@ -1223,6 +1744,35 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
     </div>
 
     <!-- DICTIONARY + SNIPPETS -->
+    <!-- NOTEBOOK -->
+    <div class="page" id="page-notebook" data-od-id="page-notebook">
+
+<div class="notebook">
+
+  <div class="head">
+    <h1>Notebook</h1>
+    <div class="tabs">
+      <button class="tab on" id="tab-days" onclick="NB.show('days')">Days</button>
+      <button class="tab" id="tab-open" onclick="NB.show('open')">Open<span class="n" id="open-n">3</span></button>
+    </div>
+  </div>
+
+  <div class="page on" id="page-days">
+    <div class="composer">
+      <textarea id="compose" placeholder="What's on your mind?"></textarea>
+      <div class="composer-foot">
+        <div class="composer-hint">Press <kbd>F7</kbd> anywhere to speak an entry</div>
+        <button class="btn-add" onclick="NB.addTyped()">Add</button>
+      </div>
+    </div>
+    <div id="days"></div>
+  </div>
+
+  <div class="page" id="page-open"><div id="open"></div></div>
+
+</div>
+    </div>
+
     <div class="page" id="page-dictionary" data-od-id="page-dictionary">
       <div class="dic-wrap">
         <div class="page-date" id="dic-count">0 entries</div>
@@ -1279,6 +1829,10 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
           <div class="set-row">
             <div><div class="sl">Refine key</div><div class="ss">speak a change to the last thing you dictated — "make it shorter", "drop point three"</div></div>
             <select id="sel-refinekey"></select>
+          </div>
+          <div class="set-row">
+            <div><div class="sl">Notebook key</div><div class="ss">speak what's on your mind — it files under today in the Notebook instead of typing at your cursor</div></div>
+            <select id="sel-notekey"></select>
           </div>
           <div class="set-row">
             <div><div class="sl">Raw take</div><div class="ss">hold <b>Shift</b> when you start recording for one take with Flow off — exactly as spoken</div></div>
@@ -1385,9 +1939,13 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.06)}
 'use strict';
 const $ = id => document.getElementById(id);
 const REC_KEYS = ['f2','f4','f6','f8','f9','pause'];
-const LANG_KEYS = ['f7','f10','f11','f12'];
+/* f7 is deliberately NOT offered here any more - it is the notebook key, and
+   _bind_hotkeys drops a note key that collides with another binding, so
+   choosing f7 for language would have silently disabled the notebook. */
+const LANG_KEYS = ['f10','f11','f12'];
 const CMD_KEYS = ['f3','f6','f8'];
 const REFINE_KEYS = ['f4','f5','f6'];
+const NOTE_KEYS = ['f7','f11','f12'];
 const AR_RE = /[؀-ۿ]/;
 /* badge glyphs — inline SVG so they never fall back to an emoji font */
 const BADGE_ICON = {
@@ -1476,6 +2034,14 @@ window.app = {
   },
   setLevel(v){ level = v; },
   addEntry(e){ HISTORY.push(e); renderFeed(); renderRail(); },
+  /* a finished F7 take. Only merge it in if the notebook has already loaded
+     its history - otherwise this one entry becomes the whole list, and the
+     lazy load is then skipped because it believes it has data. */
+  note(e){
+    if (typeof NB !== 'undefined' && _notesLoaded) NB.addNote(e);
+    const n = $('nav-notebook');
+    if (n && !n.classList.contains('on')) n.classList.add('has-new');
+  },
   updateEntry(e){
     const i = HISTORY.findIndex(x => x.ts === e.ts);
     if (i >= 0) HISTORY[i] = e;
@@ -2024,11 +2590,12 @@ function snipAdd(){
 /* ---------- nav / controls ---------- */
 function go(page){
   closeMenus();
-  for (const p of ['dictation','insights','dictionary','settings']){
+  for (const p of ['dictation','insights','notebook','dictionary','settings']){
     $('nav-' + p).classList.toggle('on', p === page);
     $('page-' + p).classList.toggle('on', p === page);
   }
   if (page === 'insights') renderInsights();
+  if (page === 'notebook'){ $('nav-notebook').classList.remove('has-new'); renderNotes(); }
   if (page === 'dictionary'){ renderDictionary(); renderSnippets(); }
 }
 function segSet(id, val){
@@ -2159,6 +2726,7 @@ function boot(init){
   fillSelect('sel-reckey', REC_KEYS, S.record_key, v => { setSetting('record_key', v); renderHints(); });
   fillSelect('sel-cmdkey', CMD_KEYS, S.command_key || 'f8', v => { setSetting('command_key', v); renderHints(); });
   fillSelect('sel-refinekey', REFINE_KEYS, S.refine_key || 'f4', v => { setSetting('refine_key', v); renderHints(); });
+  fillSelect('sel-notekey', NOTE_KEYS, S.note_key || 'f7', v => { setSetting('note_key', v); renderHints(); });
   fillSelect('sel-langkey', LANG_KEYS, S.lang_key, v => { setSetting('lang_key', v); renderHints(); });
   fillSelect('sel-mic', init.devices, S.mic_device || 'System default',
              v => setSetting('mic_device', v === 'System default' ? '' : v));
@@ -2259,6 +2827,155 @@ setTimeout(() => {
     }).observe(el, {childList: true, characterData: true, subtree: true});
   });
 })();
+
+/* ===== NOTEBOOK (designed in Open Design, project dial-flow-notebook) =====
+   Wrapped: the notebook defines esc/dayLabel/isAr/MONTHS, all of which the
+   app already defines with different behaviour. Only window.NB escapes. */
+(function(){
+
+/* ---- SAMPLE DATA: the exact shape Python sends. Do not change the keys. ---- */
+let NOTES = [];
+
+const DAYNAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS=['January','February','March','April','May','June','July','August',
+              'September','October','November','December'];
+function dayLabel(d){
+  const [y,m,dd]=d.split('-').map(Number);
+  const dt=new Date(y,m-1,dd), today=new Date();
+  const same=(a,b)=>a.toDateString()===b.toDateString();
+  const yest=new Date(today); yest.setDate(today.getDate()-1);
+  if(same(dt,today))return 'Today';
+  if(same(dt,yest))return 'Yesterday';
+  return DAYNAMES[dt.getDay()]+', '+dd+' '+MONTHS[m-1];
+}
+function clock(ts){const d=new Date(ts*1000);
+  return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');}
+function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function isAr(s){return /[؀-ۿ]/.test(s||'');}
+
+function render(){
+  const byDay={};
+  for(const e of NOTES){(byDay[e.day]=byDay[e.day]||[]).push(e);}
+  let html='';
+  for(const day of Object.keys(byDay).sort().reverse()){
+    const es=byDay[day].sort((a,b)=>b.ts-a.ts);
+    const n=es.reduce((s,e)=>s+e.tasks.length,0);
+    html+=`<section class="day"><div class="dayhead"><h2>${dayLabel(day)}</h2>
+      <div class="meta">${es.length} entr${es.length===1?'y':'ies'}${n?' · '+n+' task'+(n===1?'':'s'):''}</div></div>`;
+    for(const e of es)html+=entryHtml(e);
+    html+='</section>';
+  }
+  document.getElementById('days').innerHTML=html||emptyState();
+
+  const open=[];
+  for(const e of NOTES)for(const t of e.tasks)if(!t.done)open.push({t,e});
+  document.getElementById('open-n').textContent=open.length;
+  document.getElementById('open').innerHTML= open.length
+    ? '<ul class="open-list">'+open.map(({t,e})=>
+        `<li><input type="checkbox" onchange="NB.toggle(${e.ts},'${t.id}',this.checked)">
+         <label${isAr(t.text)?' dir="rtl"':''}>${esc(t.text)}</label>
+         <span class="when">${dayLabel(e.day)}</span></li>`).join('')+'</ul>'
+    : emptyStateOpen();
+}
+
+function emptyState(){
+  return `<div class="empty">
+    <svg class="empty-icon" viewBox="0 0 48 48" fill="none">
+      <rect x="8" y="6" width="32" height="38" rx="3" stroke="currentColor" stroke-width="2"/>
+      <line x1="14" y1="16" x2="34" y2="16" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="14" y1="24" x2="30" y2="24" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="14" y1="32" x2="26" y2="32" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+    <div class="empty-title">Nothing yet</div>
+    <div class="empty-hint">Press <kbd>F7</kbd> and say what's on your mind</div>
+  </div>`;
+}
+function emptyStateOpen(){
+  return `<div class="empty">
+    <svg class="empty-icon" viewBox="0 0 48 48" fill="none">
+      <circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2"/>
+      <polyline points="16,24 22,30 32,18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="empty-title">All caught up</div>
+    <div class="empty-hint">No open tasks</div>
+  </div>`;
+}
+
+function entryHtml(e){
+  const arDir=isAr(e.raw)?' dir="rtl"':'';
+  return `<article class="entry" id="e${e.ts}">
+    <div class="entry-body">
+      <div class="entry-top">
+        <div class="entry-title">${esc(e.title||'Note')}</div>
+        <div class="entry-time">${clock(e.ts)}</div>
+      </div>
+      ${e.tasks.length?'<ul class="tasks">'+e.tasks.map(t=>
+        `<li class="${t.done?'done':''}"><input type="checkbox" ${t.done?'checked':''}
+          onchange="NB.toggle(${e.ts},'${t.id}',this.checked)">
+         <label${isAr(t.text)?' dir="rtl" style="font-family:var(--f-ar)"':''}>${esc(t.text)}</label></li>`).join('')+'</ul>':''}
+      ${e.notes.length?'<ul class="notes">'+e.notes.map(n=>
+        `<li${isAr(n)?' dir="rtl" style="font-family:var(--f-ar)"':''}>${esc(n)}</li>`).join('')+'</ul>':''}
+      <div class="raw"${arDir}>${esc(e.raw)}</div>
+    </div>
+    <div class="entry-foot">
+      <div class="toggle-group">
+        <button class="toggle-btn on" onclick="NB.flip(${e.ts},0,this)">Organized</button>
+        <button class="toggle-btn" onclick="NB.flip(${e.ts},1,this)">Raw</button>
+      </div>
+      <span class="spacer"></span>
+      <span class="badge">${e.by==='ai'?'AI':'On device'}</span>
+    </div>
+  </article>`;
+}
+
+function flip(ts,raw,btn){
+  document.getElementById('e'+ts).classList.toggle('showraw',!!raw);
+  for(const b of btn.parentElement.querySelectorAll('.toggle-btn'))b.classList.remove('on');
+  btn.classList.add('on');
+}
+function toggle(ts,id,done){
+  const e=NOTES.find(x=>x.ts===ts); if(!e)return;
+  const t=e.tasks.find(x=>x.id===id); if(t)t.done=done;
+  render();
+}
+function show(p){
+  for(const id of ['days','open']){
+    document.getElementById('page-'+id).classList.toggle('on',id===p);
+    document.getElementById('tab-'+id).classList.toggle('on',id===p);
+  }
+}
+function addTyped(){
+  const el=document.getElementById('compose');
+  if(el.value.trim())el.value='';
+}
+render();
+
+const _toggle = toggle;
+window.NB = {
+  render, entryHtml, flip, show,
+  /* tick through to Python so it survives a restart */
+  toggle(ts, id, done){ _toggle(ts, id, done); api('note_toggle', ts, id, done); },
+  /* typed entries go through the same organiser as spoken ones */
+  addTyped(){
+    const el = document.getElementById('compose');
+    const v = (el.value || '').trim();
+    if (!v) return;
+    el.value = '';
+    api('note_add_text', v);
+  },
+  setNotes(a){ NOTES = (a || []).slice(); render(); },
+  addNote(e){ NOTES.push(e); render(); }
+};
+})();
+
+let _notesLoaded = false;
+async function renderNotes(){
+  if (_notesLoaded){ NB.render(); return; }
+  _notesLoaded = true;
+  try { NB.setNotes(await api('notes_all')); }
+  catch (err){ console.error('notes load failed', err); _notesLoaded = false; }
+}
+
 </script>
 </body>
 </html>
