@@ -1163,6 +1163,18 @@ html[data-theme=dark] #page-notebook{
 }
 #page-notebook .tab.on .n{background:var(--accent);color:#fff}
 
+/* The shell does not scroll (html,body are overflow:hidden), so every long
+   page carries its OWN scroller - #page-insights and #page-settings both do.
+   The notebook shipped without one, so an entry taller than the window had
+   nowhere to go: 5956px of content inside a 754px box, clipped by the body,
+   with no scrollable ancestor anywhere. Dictation hid the bug because it
+   happens to fit the window exactly.
+   min-height must be reset too: the scoped `body{min-height:100vh}` made this
+   flex child taller than the box that contains it, which overflows #content
+   (overflow:visible) instead of scrolling inside it. */
+#page-notebook{min-height:0;overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;padding-bottom:28px}
+
 #page-notebook /* ---- pages ---- */
 .page{display:none}
 #page-notebook .page.on{display:block}
