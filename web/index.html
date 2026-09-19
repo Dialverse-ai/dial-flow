@@ -1175,6 +1175,24 @@ html[data-theme=dark] #page-notebook{
 #page-notebook{min-height:0;overflow-y:auto;overflow-x:hidden;
   overscroll-behavior:contain;padding-bottom:28px}
 
+/* The app sets *{user-select:none} globally (it is a desktop window, not a
+   web page) and every surface that holds real text opts back in. The notebook
+   never did, so none of his own words could be selected or copied. A click
+   still ticks a task; only dragging selects. */
+#page-notebook .entry-title,#page-notebook .tasks label,
+#page-notebook .notes li,#page-notebook .raw,
+#page-notebook .open-list label,#page-notebook .day-label{
+  -webkit-user-select:text;user-select:text}
+#page-notebook .copy-btn{
+  border:1px solid var(--border);background:var(--surface);
+  border-radius:6px;font:inherit;font-size:11px;font-weight:600;
+  color:var(--muted);padding:4px 9px;cursor:pointer;
+  transition:color .12s,border-color .12s,background .12s}
+#page-notebook .copy-btn:hover{color:var(--accent-text);
+  border-color:var(--accent-tint-b);background:var(--accent-tint)}
+#page-notebook .copy-btn.done{color:var(--ok-text);border-color:var(--ok-tint-b);
+  background:var(--ok-tint)}
+
 #page-notebook /* ---- pages ---- */
 .page{display:none}
 #page-notebook .page.on{display:block}
@@ -2934,6 +2952,7 @@ function entryHtml(e){
         <button class="toggle-btn on" onclick="NB.flip(${e.ts},0,this)">Organized</button>
         <button class="toggle-btn" onclick="NB.flip(${e.ts},1,this)">Raw</button>
       </div>
+      <button class="copy-btn" onclick="NB.copy(${e.ts},this)">Copy</button>
       <span class="spacer"></span>
       <span class="badge">${e.by==='ai'?'AI':'On device'}</span>
     </div>
@@ -2976,7 +2995,24 @@ window.NB = {
     api('note_add_text', v);
   },
   setNotes(a){ NOTES = (a || []).slice(); render(); },
-  addNote(e){ NOTES.push(e); render(); }
+  addNote(e){ NOTES.push(e); render(); },
+  /* Copies whichever view is on screen: the raw transcript if he flipped to
+     it, otherwise the organised text. Goes through the app's own clipboard
+     bridge, because document.execCommand is unreliable in WebView2. */
+  copy(ts, btn){
+    const e = NOTES.find(x => x.ts === ts);
+    if (!e) return;
+    const raw = document.getElementById('e' + ts).classList.contains('showraw');
+    const text = raw ? e.raw : [
+      e.title || '',
+      ...e.tasks.map(t => (t.done ? '[x] ' : '[ ] ') + t.text),
+      ...e.notes.map(n => '- ' + n)
+    ].filter(Boolean).join('\n');
+    api('copy_text', text);
+    btn.textContent = 'Copied';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1400);
+  }
 };
 })();
 

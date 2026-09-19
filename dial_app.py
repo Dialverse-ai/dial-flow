@@ -61,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.2.1"
+APP_VERSION = "5.3.0"
 PILL_W, PILL_H = 150, 38    # expanded (recording/processing)
 MINI_W, MINI_H = 76, 16     # idle: the edge tab, flush to the docked edge
 HOVER_W, HOVER_H = 190, 46  # hovered: status text + cancel / open controls
@@ -200,6 +200,10 @@ _TASK_CUES = re.compile(
     r"\b(?:i (?:need|have) to|i should|i must|i gotta|gotta|need to|"
     r"remind me to|remember to|don'?t forget to|make sure (?:to|i)|"
     r"todo|to-do|task|i'?ll|i will|let'?s|we (?:need|should) to|"
+    # "I want to ..." is how he actually states an intention out loud - most
+    # of a real take's tasks were being missed without it
+    r"i want to|i wanna|i'?d like to|i would like to|i'?m going to|"
+    r"i'?m gonna|we want to|"
     r"should get done|has to (?:be|get) done)\b"
     r"|لازم|يجب|محتاج"
     r"|فاكرني|متنساش",
@@ -234,21 +238,22 @@ _LEAD = re.compile(
 
 
 def _split_clauses(text):
-    """Speech has almost no punctuation, so sentence-splitting alone returns
-    one 300-word blob. Split on terminators AND on the spoken connectives
-    people actually use to start a new thought."""
+    """Split ONLY where the speaker actually ended a sentence.
+
+    This used to also split on the connectives "and / also / then / plus",
+    on the theory that dictation has little punctuation. On real speech that
+    was a disaster: "the details for the client and their phone number and
+    when they were called" became three entries reading "Their phone number",
+    "When they were called", "Everything", and "so on and so forth" left a
+    note that said only "Forth". A connective joins phrases far more often
+    than it starts a thought, and there is no reliable way to tell which from
+    a regex.
+
+    So: terminators and line breaks only. A long unpunctuated run stays whole -
+    one big faithful note is worth more than twenty fragments of one, and the
+    raw transcript is always there underneath."""
     parts = re.split(r"(?<=[.!?؟۔])\s+|\n+", text)
-    out = []
-    for p in parts:
-        # ", and also X" / " and then X" start new thoughts in dictation
-        for piece in re.split(
-                r"[,،]?\s+(?=(?:and |also |then |plus |"
-                r"وكمان |كمان )"
-                r"(?:i |we |yeah |))", p):
-            piece = piece.strip(" ,،;:-")
-            if piece:
-                out.append(piece)
-    return out
+    return [p.strip(" ,،;:-") for p in parts if p.strip(" ,،;:-")]
 
 
 def _tidy_clause(s):
@@ -264,6 +269,66 @@ def _tidy_clause(s):
     return s[:1].upper() + s[1:] if s and s[:1].isascii() else s
 
 
+# Small enough that the model restructures instead of compressing, big enough
+# that a normal 30-second take is still a single call.
+NOTE_CHUNK_CHARS = 900
+
+
+def _oversize_split(parts, limit):
+    """Break only the pieces that are too long for one call, at commas."""
+    for p in parts:
+        if len(p) <= limit * 1.6:
+            yield p
+            continue
+        bits = re.split(r"(?<=[,،])\s+", p)
+        if len(bits) == 1:
+            # No sentence ends AND no commas - four minutes of unbroken speech.
+            # Wrap on whitespace as a last resort. A sentence split across two
+            # chunks costs one extra line; leaving it whole cost 65% of what he
+            # said, because the model summarises what it cannot restructure.
+            words, buf = p.split(), ""
+            for w in words:
+                if buf and len(buf) + len(w) + 1 > limit:
+                    yield buf
+                    buf = w
+                else:
+                    buf = f"{buf} {w}".strip()
+            if buf:
+                yield buf
+            continue
+        buf = ""
+        for bit in bits:
+            if buf and len(buf) + len(bit) + 1 > limit:
+                yield buf
+                buf = bit
+            else:
+                buf = f"{buf} {bit}".strip()
+        if buf:
+            yield buf
+
+
+def _chunk_for_notes(text, limit=NOTE_CHUNK_CHARS):
+    """Cut at sentence ends, never mid-sentence, packing up to `limit` chars.
+
+    A single unpunctuated run longer than the limit still has to be broken up,
+    or the model summarises it exactly as before - one real take arrived as a
+    5970-character run with no full stop in it. It is cut at COMMAS near the
+    limit: a comma in the transcript is a pause the speaker actually made.
+    Connectives are deliberately not used, since splitting on "and"/"also" is
+    what produced fragments like "Their phone number". With no commas either,
+    it is left whole rather than cut blind."""
+    out, cur = [], ""
+    for part in _oversize_split(_split_clauses(text), limit):
+        if cur and len(cur) + len(part) + 1 > limit:
+            out.append(cur)
+            cur = part
+        else:
+            cur = f"{cur} {part}".strip()
+    if cur:
+        out.append(cur)
+    return out or [text]
+
+
 def _organize_locally(text):
     """Sort a dump into tasks and notes with no model and no network.
 
@@ -277,9 +342,18 @@ def _organize_locally(text):
         tidy = _tidy_clause(clause)
         if len(tidy) < 2:
             continue
-        # the cue can sit anywhere ("so I need to X"), but a bare imperative
-        # only counts at the front of the tidied clause
-        is_task = bool(_TASK_CUES.search(clause) or _TASK_VERB.match(tidy))
+        # The cue must sit near the FRONT of the sentence. Searching the whole
+        # clause meant any long ramble containing "I need to" somewhere in its
+        # middle was promoted wholesale to a task - which is exactly how a
+        # 400-character run-on ended up as a single checkbox, with the actual
+        # task buried inside it. A bare imperative must start the sentence.
+        head = tidy[:60].lower()
+        is_task = bool(_TASK_CUES.search(head) or _TASK_VERB.match(tidy))
+        # A "task" the length of a paragraph is not a task, whatever it says.
+        # Better to leave it in notes, intact, than to put a wall of text
+        # behind a checkbox he can never meaningfully tick.
+        if is_task and len(tidy) > 180:
+            is_task = False
         (tasks if is_task else notes).append(tidy)
     if not tasks and not notes:
         return None
@@ -315,9 +389,13 @@ NOTE_PROMPT = (
     "words. Fix grammar. Keep THEIR words, phrasing and language otherwise - "
     "an Arabic sentence stays Arabic, an English one stays English, a mixed "
     "one stays mixed. Do not translate, summarise, or make it more formal.\n"
-    "4. One task per line, one thought per note. Split a run-on into separate "
+    "4. KEEP EVERY NAME, exactly as spoken. Clients, people, products, "
+    "screens, companies, numbers. 'I like that Marcus Elderberry shows the "
+    "client details' must not become 'client details are shown' - the name is "
+    "usually the only thing that makes the line findable later.\n"
+    "5. One task per line, one thought per note. Split a run-on into separate "
     "entries rather than making one long line.\n"
-    "5. Never merge two different things into one entry to make it shorter.\n\n"
+    "6. Never merge two different things into one entry to make it shorter.\n\n"
     "Return ONLY the JSON object. No markdown fence, no commentary.\n\n"
     "What they said:\n"
 )
@@ -1729,11 +1807,48 @@ class Engine:
         thought. If the key is missing, dead or unconvincing, the local
         splitter answers instead."""
         if self.api_key and not getattr(self, "_chat_dead", False):
-            ai = self._organize_note_ai(text)
+            ai = self._organize_note_chunked(text)
             if ai:
                 ai["by"] = "ai"
                 return ai
         return _organize_locally(text)
+
+    def _organize_note_chunked(self, text):
+        """Organize a dump in pieces small enough that the model cannot
+        summarise it.
+
+        A single call on a long take came back holding 35-41% of what he said.
+        That is not a prompt problem - a model asked to restructure 9000
+        characters in one response compresses, however firmly it is told not
+        to. The fix is the same one the Flow cleanup already uses: cut the
+        text at sentence boundaries and ask about one piece at a time, where
+        there is nothing to compress.
+
+        A piece the model mangles or refuses is kept as a NOTE, verbatim.
+        Nothing he said is ever dropped on the floor - previously a failure
+        here handed the whole take to the local splitter, which shredded it."""
+        chunks = _chunk_for_notes(text)
+        if len(chunks) == 1:
+            got = self._organize_note_ai(chunks[0])
+            return got or None
+        logging.info("note organize: %d chunks", len(chunks))
+        tasks, notes, title = [], [], ""
+        won = 0
+        for i, chunk in enumerate(chunks):
+            got = self._organize_note_ai(chunk)
+            if got:
+                won += 1
+                title = title or got.get("title") or ""
+                tasks.extend(got.get("tasks", []))
+                notes.extend(got.get("notes", []))
+            else:
+                # keep the piece rather than lose it
+                logging.warning("note organize: chunk %d/%d kept raw",
+                                i + 1, len(chunks))
+                notes.append(chunk.strip())
+        if not won:
+            return None
+        return {"title": title[:60], "tasks": tasks, "notes": notes}
 
     def _organize_note_ai(self, text):
         out = self._chat(NOTE_PROMPT + text)
