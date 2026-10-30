@@ -61,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.5.0"
+APP_VERSION = "5.5.1"
 # Recording is BIG now (5.5): the flowing waveform needs length to read as a
 # voice rather than a squiggle. Idle stays tiny and out of the way.
 PILL_W, PILL_H = 220, 44    # expanded (recording/processing)
@@ -458,6 +458,7 @@ PROMPT_MODE = (
 # summarize the whole thing. Small segments stay fast and keep the output
 # proportional to the input.
 CLEAN_CHARS = 1400
+CLEAN_BUDGET_S = 25   # whole-take Flow cleanup cap; late segments paste raw
 
 # Words a cleanup is SUPPOSED to delete, so their absence is not lost content.
 _FILLER_WORDS = {
@@ -2334,14 +2335,9 @@ class Engine:
         comes back untrustworthy keeps its ORIGINAL text â€” losing the user's
         words is strictly worse than leaving them unpolished."""
         chunks = self._text_chunks(text)
-        if len(chunks) == 1:
-            # `got or None` keeps _clean_one's contract: None is a transport
-            # failure and "" is "the model answered but _plausible rejected
-            # it". Both mean nothing was cleaned, which is what the chunked
-            # path signals with `if failed + rejected == len(chunks)`. Mapping
-            # "" to the original text instead stamped the history entry
-            # cleaned=True and hid the "pasted raw" status from the user.
-            return self._clean_one(recipe, label, chunks[0], 1, 1) or None
+        # A one-segment take goes through the same pool so it gets the same
+        # time budget. Its outcome is unchanged: cleaned text, or None when the
+        # segment failed or was rejected (`failed + rejected == len(chunks)`).
         # Segments are cleaned independently and re-joined in order, so the
         # sequential loop just stacked one full model latency per 1400 chars
         # â€” a 3-chunk take waited for three round-trips back to back. Run
@@ -2352,17 +2348,31 @@ class Engine:
         # feels so much slower than raw transcription. These are tiny requests
         # to a hosted API, not local CPU work, so the pool can be as wide as
         # the take is long.
-        with cf.ThreadPoolExecutor(max_workers=min(12, len(chunks))) as pool:
-            futs = {pool.submit(self._clean_one, recipe, label, c,
-                                i + 1, len(chunks)): i
-                    for i, c in enumerate(chunks)}
-            for f in cf.as_completed(futs):
-                i = futs[f]
-                try:
-                    got_by_i[i] = f.result()
-                except Exception:
-                    logging.exception("cleanup segment %s crashed", i + 1)
-                    got_by_i[i] = None
+        #
+        # One budget for the whole take. Cohere sometimes holds a call for the
+        # full 150s read timeout, or returns garbage that costs a retry, and
+        # nothing capped the total: on 2026-10-29/30 a 25s take waited 192s
+        # and a 136s take 212s, while transcription itself took 1-5s. A
+        # segment not back in time keeps the user's raw words, same as a
+        # failed one; its thread finishes in the background and is ignored.
+        # ponytail: fixed budget; scale it with take length if long takes
+        # start coming back half-cleaned.
+        pool = cf.ThreadPoolExecutor(max_workers=min(12, len(chunks)))
+        futs = {pool.submit(self._clean_one, recipe, label, c,
+                            i + 1, len(chunks)): i
+                for i, c in enumerate(chunks)}
+        done, late = cf.wait(futs, timeout=CLEAN_BUDGET_S)
+        pool.shutdown(wait=False, cancel_futures=True)
+        for f in done:
+            i = futs[f]
+            try:
+                got_by_i[i] = f.result()
+            except Exception:
+                logging.exception("cleanup segment %s crashed", i + 1)
+                got_by_i[i] = None
+        if late:
+            logging.warning("cleanup: %s/%s segments over the %ss budget - "
+                            "kept raw", len(late), len(chunks), CLEAN_BUDGET_S)
         out, failed, rejected = [], 0, 0
         for i, c in enumerate(chunks):
             got = got_by_i.get(i)
