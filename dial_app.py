@@ -61,7 +61,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.5.1"
+APP_VERSION = "5.6.0"
 # Recording is BIG now (5.5): the flowing waveform needs length to read as a
 # voice rather than a squiggle. Idle stays tiny and out of the way.
 PILL_W, PILL_H = 220, 44    # expanded (recording/processing)
@@ -88,6 +88,7 @@ CHAT_URL = "https://api.cohere.com/v2/chat"
 MODELS_URL = "https://api.cohere.com/v1/models"
 MODEL = "cohere-transcribe-arabic-07-2026"
 CLEANUP_MODELS = ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"]
+CLAUDE_MODEL = "claude-haiku-5-5"   # used for every text job when a Claude key is set
 SAMPLE_RATE = 16000
 MAX_SECONDS = 900
 # 16kHz PCM16 is ~32KB/s, so one request per 30s is ~0.96MB. Bigger single
@@ -2019,7 +2020,8 @@ class Engine:
         because a key expired, and it must not need the network to file a
         thought. If the key is missing, dead or unconvincing, the local
         splitter answers instead."""
-        if self.api_key and not getattr(self, "_chat_dead", False):
+        if os.environ.get("ANTHROPIC_API_KEY") or (
+                self.api_key and not getattr(self, "_chat_dead", False)):
             ai = self._organize_note_chunked(text)
             if ai:
                 ai["by"] = "ai"
@@ -2156,7 +2158,48 @@ class Engine:
         n = len(entry["tasks"])
         self._worker_state("idle", "Noted" + (f" - {n} task{'s'*(n!=1)}" if n else ""))
 
+    def _chat_claude(self, prompt, key):
+        """One Claude Haiku call. Same contract as the Cohere path: the text,
+        or None for "keep the user's raw words". From Oct 2026 Cohere's chat
+        hung for the full read timeout and returned junk ('a spy, a spy...',
+        '3333...'), so a Claude key, when set, does every text job."""
+        import anthropic
+        if getattr(self, "_claude", None) is None or self._claude.api_key != key:
+            # 20s per call, one retry: CLEAN_BUDGET_S still caps the whole take
+            self._claude = anthropic.Anthropic(api_key=key, timeout=20.0,
+                                               max_retries=1)
+        try:
+            resp = self._claude.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=4000,
+                # low effort: this is punctuation and layout, not reasoning,
+                # and every second here is a second he waits to see his text
+                output_config={"effort": "low"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except anthropic.AuthenticationError:
+            logging.error("claude key rejected (401) - pasting raw")
+            return None
+        except anthropic.APIStatusError as e:
+            logging.warning("claude api %s: %s", e.status_code, e.message)
+            return None
+        except anthropic.APIConnectionError:      # includes timeouts
+            logging.exception("claude call failed")
+            return None
+        if resp.stop_reason == "refusal":
+            logging.warning("claude declined a cleanup - pasting raw")
+            return None
+        # thinking blocks can come first: read text blocks by type
+        out = "".join(b.text for b in resp.content if b.type == "text").strip()
+        return out or None
+
     def _chat(self, prompt):
+        claude_key = os.environ.get("ANTHROPIC_API_KEY")
+        if claude_key:
+            return self._chat_claude(prompt, claude_key)
+        return self._chat_cohere(prompt)
+
+    def _chat_cohere(self, prompt):
         """One Cohere chat call with the model-fallback chain. Transient
         failures (429, network blips) retry â€” a silently skipped cleanup
         reads to the user as 'the feature is broken'."""
@@ -2565,9 +2608,42 @@ class DialFlow:
 
     # ---------- js api ----------
 
+    @staticmethod
+    def _write_env(name, value):
+        """Set one key in .env, keeping the other (Cohere and Claude share it)."""
+        lines = []
+        if os.path.exists(ENV_FILE):
+            with open(ENV_FILE, encoding="utf-8") as f:
+                lines = [ln for ln in f.read().splitlines()
+                         if ln.strip() and not ln.startswith(name + "=")]
+        lines.append(f"{name}={value}")
+        with open(ENV_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.environ[name] = value
+
+    def _save_claude_key(self, key):
+        """A Claude key runs Flow cleanup, the notebook and command mode on
+        Haiku. Checked against the model itself (no tokens spent) so a key
+        without access to it is refused here, not on his next take."""
+        import anthropic
+        try:
+            anthropic.Anthropic(api_key=key, timeout=10.0,
+                                max_retries=0).models.retrieve(CLAUDE_MODEL)
+        except anthropic.APIError:
+            logging.warning("claude key check failed", exc_info=True)
+            return {"ok": False}
+        self._write_env("ANTHROPIC_API_KEY", key)
+        logging.info("claude key saved - text jobs now run on %s", CLAUDE_MODEL)
+        return {"ok": True, "init": {
+            "settings": dict(self.settings),
+            "history": self.history[-500:],
+            "devices": self._devices(),
+        }}
+
     def get_init(self):
         load_dotenv(ENV_FILE)
         key = os.environ.get("COHERE_API_KEY")
+        claude = os.environ.get("ANTHROPIC_API_KEY")
         logo = ""
         try:
             img = Image.open(ICON_FILE)
@@ -2583,7 +2659,12 @@ class DialFlow:
             "key_set": bool(key),
             # masked so the Settings row can show WHICH key is loaded without
             # putting the secret on screen
-            "key_hint": (key[:4] + "…" + key[-4:]) if key and len(key) > 12 else "",
+            "key_hint": " · ".join(
+                h for h in (
+                    ("Cohere " + key[:4] + "…" + key[-4:])
+                    if key and len(key) > 12 else "",
+                    ("Claude …" + claude[-4:]) if claude else "")
+                if h),
             "logo": logo,
             "user": user.capitalize() if user else "",
             "version": APP_VERSION,
@@ -2594,6 +2675,8 @@ class DialFlow:
 
     def save_key(self, key):
         key = (key or "").strip()
+        if key.startswith("sk-ant-"):
+            return self._save_claude_key(key)
         try:
             r = requests.get(MODELS_URL,
                              headers={"Authorization": f"Bearer {key}"}, timeout=10)
@@ -2602,9 +2685,7 @@ class DialFlow:
             ok = False
         if not ok:
             return {"ok": False}
-        with open(ENV_FILE, "w", encoding="utf-8") as f:
-            f.write(f"COHERE_API_KEY={key}\n")
-        os.environ["COHERE_API_KEY"] = key
+        self._write_env("COHERE_API_KEY", key)
         if self.engine is None:
             logging.info("api key saved on first run")
             self._boot_engine(key)
