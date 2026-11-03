@@ -21,6 +21,7 @@ import re
 import sys
 import threading
 import shutil
+import subprocess
 import time
 import wave
 import webbrowser
@@ -61,7 +62,7 @@ if (getattr(sys, "frozen", False)
             except OSError:
                 pass
 
-APP_VERSION = "5.6.0"
+APP_VERSION = "5.7.0"
 # Recording is BIG now (5.5): the flowing waveform needs length to read as a
 # voice rather than a squiggle. Idle stays tiny and out of the way.
 PILL_W, PILL_H = 220, 44    # expanded (recording/processing)
@@ -89,6 +90,31 @@ MODELS_URL = "https://api.cohere.com/v1/models"
 MODEL = "cohere-transcribe-arabic-07-2026"
 CLEANUP_MODELS = ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"]
 CLAUDE_MODEL = "claude-haiku-5-5"   # used for every text job when a Claude key is set
+
+
+def _find_claude_cli():
+    """claude.exe from Claude Code, if installed. With no API key set, text
+    jobs run through it on the user's own Claude plan (Mazen 2026-11-03)."""
+    found = shutil.which("claude.exe")
+    if found:
+        return found
+    for base in (os.path.expanduser(r"~\.local\bin"),
+                 os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs",
+                              "nodejs", "node_modules", "@anthropic-ai",
+                              "claude-code", "bin"),
+                 os.path.join(os.environ.get("APPDATA", ""), "npm",
+                              "node_modules", "@anthropic-ai", "claude-code",
+                              "bin")):
+        p = os.path.join(base, "claude.exe")
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+CLAUDE_CLI = _find_claude_cli()
+# each call is its own claude.exe process; a long take splits into up to 12
+# segments and twelve at once is a needless CPU spike on this laptop
+_CLI_SLOTS = threading.Semaphore(4)
 SAMPLE_RATE = 16000
 MAX_SECONDS = 900
 # 16kHz PCM16 is ~32KB/s, so one request per 30s is ~0.96MB. Bigger single
@@ -2020,7 +2046,7 @@ class Engine:
         because a key expired, and it must not need the network to file a
         thought. If the key is missing, dead or unconvincing, the local
         splitter answers instead."""
-        if os.environ.get("ANTHROPIC_API_KEY") or (
+        if os.environ.get("ANTHROPIC_API_KEY") or CLAUDE_CLI or (
                 self.api_key and not getattr(self, "_chat_dead", False)):
             ai = self._organize_note_chunked(text)
             if ai:
@@ -2193,10 +2219,48 @@ class Engine:
         out = "".join(b.text for b in resp.content if b.type == "text").strip()
         return out or None
 
+    def _chat_cli(self, prompt):
+        """One Haiku call through Claude Code (`claude -p`), billed to the
+        user's Claude plan, not an API key. --safe-mode keeps his CLAUDE.md,
+        hooks, plugins and MCP servers out of it, and the short system prompt
+        replaces Claude Code's own so the reply is only the text. ~5s.
+
+        Thinking off: on the Flow recipe Haiku thought for 1,200-2,000 tokens
+        (13-20s, and --effort low did not cut it); with MAX_THINKING_TOKENS=0
+        the same cleanup came back identical in 5s."""
+        try:
+            with _CLI_SLOTS:
+                p = subprocess.run(
+                    [CLAUDE_CLI, "-p", "--safe-mode", "--model", "haiku",
+                     "--tools", "", "--no-session-persistence",
+                     "--output-format", "json",
+                     "--system-prompt", "You rewrite text exactly as the "
+                     "instructions say. Reply with only the resulting text."],
+                    input=prompt.encode("utf-8"), capture_output=True,
+                    timeout=20, cwd=CONFIG_DIR,
+                    env={**os.environ, "MAX_THINKING_TOKENS": "0"},
+                    creationflags=0x08000000)  # CREATE_NO_WINDOW
+            out = json.loads(p.stdout.decode("utf-8"))
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            logging.exception("claude cli call failed")
+            return None
+        if out.get("is_error"):
+            logging.warning("claude cli: %s", str(out.get("result"))[:200])
+            return None
+        if not getattr(self, "_cli_logged", False):
+            self._cli_logged = True
+            logging.info("text jobs run on your Claude plan via %s", CLAUDE_CLI)
+        return (out.get("result") or "").strip() or None
+
     def _chat(self, prompt):
         claude_key = os.environ.get("ANTHROPIC_API_KEY")
         if claude_key:
             return self._chat_claude(prompt, claude_key)
+        if CLAUDE_CLI:
+            out = self._chat_cli(prompt)
+            if out is not None:
+                return out
+        # not logged in, an old CLI without --safe-mode, or a timeout
         return self._chat_cohere(prompt)
 
     def _chat_cohere(self, prompt):
@@ -2663,7 +2727,8 @@ class DialFlow:
                 h for h in (
                     ("Cohere " + key[:4] + "…" + key[-4:])
                     if key and len(key) > 12 else "",
-                    ("Claude …" + claude[-4:]) if claude else "")
+                    ("Claude …" + claude[-4:]) if claude else
+                    ("Claude plan" if CLAUDE_CLI else ""))
                 if h),
             "logo": logo,
             "user": user.capitalize() if user else "",
